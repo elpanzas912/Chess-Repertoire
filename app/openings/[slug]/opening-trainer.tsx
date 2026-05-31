@@ -198,8 +198,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const updateInstruction = useCallback((chess: Chess) => {
     setInstruction(opening.descriptions[chess.fen()] ?? "Encuentra el mejor movimiento para continuar la variante.");
   }, [opening.descriptions]);
-
-  const playOpponentMoves = useCallback((source: Chess, startIndex: number) => {
+  const playOpponentMoves = useCallback((source: Chess, startIndex: number, initialDelay = 0) => {
     const chess = new Chess(source.fen());
     let index = startIndex;
 
@@ -230,7 +229,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       timer.current = setTimeout(playNext, 340);
     };
 
-    timer.current = setTimeout(playNext, 240);
+    timer.current = setTimeout(playNext, initialDelay);
   }, [currentLine, moves, opening.playerSide, slug, soundsEnabled, updateInstruction]);
 
   const startLine = useCallback((index: number) => {
@@ -253,7 +252,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     setMoveIndex(0);
     setCompleted(false);
     playSound("game-start", soundsEnabled);
-    playOpponentMoves(chess, 0);
+    playOpponentMoves(chess, 0, 240);
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
@@ -291,13 +290,36 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       setHint(null);
 
       if (expected.from !== from || expected.to !== to) {
+        // Movimiento incorrecto
+        const fenBefore = game.fen();
+
         setFeedback({ square: to, type: "wrong" });
         vibrate([18, 20, 18]);
         playSound("illegal", soundsEnabled);
-        setTimeout(() => setFeedback(null), 500);
-        return false; // Pieza rebota
+
+        // Ejecutamos temporalmente la jugada incorrecta para permitir que caiga en la casilla equivocada
+        // y para actualizar la barra de evaluación material con el error
+        const tempChess = new Chess(fenBefore);
+        try {
+          tempChess.move({ from, to, promotion: "q" });
+          setGame(tempChess);
+          setLastMove({ from, to });
+        } catch (e) {
+          // Fallback seguro en caso de que sea ilegal para chess.js
+        }
+
+        setTimeout(() => {
+          setFeedback(null);
+          // Rollback: restauramos el FEN original de antes de la jugada errónea
+          const originalChess = new Chess(fenBefore);
+          setGame(originalChess);
+          setLastMove(null);
+        }, 500);
+
+        return true; // Permite soltar la pieza en la casilla incorrecta para simular el feedback visual
       }
 
+      // Movimiento correcto
       const chess = new Chess(game.fen());
       const move = chess.move({ from, to, promotion: "q" });
       if (!move) return false;
@@ -313,7 +335,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
       setTimeout(() => {
         setFeedback(null);
-        playOpponentMoves(chess, nextIndex);
+        playOpponentMoves(chess, nextIndex, 0); // 0 delay inicial porque ya esperamos los 350ms del checkmark
       }, 350);
 
       return true; // Pieza se queda
