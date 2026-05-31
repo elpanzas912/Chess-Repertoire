@@ -40,6 +40,7 @@ export function ChessboardReact({
   const containerRef = useRef<HTMLDivElement>(null);
   const boardInstanceRef = useRef<any>(null);
   const [boardLoaded, setBoardLoaded] = useState(false);
+  const lastInteractiveFenRef = useRef<string | null>(null);
   const propsRef = useRef({
     position,
     orientation,
@@ -140,6 +141,14 @@ export function ChessboardReact({
   useEffect(() => {
     if (!boardLoaded || !boardInstanceRef.current) return;
     const board = boardInstanceRef.current;
+    
+    // Si la nueva posición coincide con la última posición interactiva realizada por el usuario,
+    // evitamos volver a llamar a setPosition para que no se interrumpa la animación nativa de colocación.
+    if (lastInteractiveFenRef.current === position) {
+      lastInteractiveFenRef.current = null; // Resetear
+      return;
+    }
+    
     if (board.state.position.getFen() !== position) {
       void board.setPosition(position, true);
     }
@@ -215,6 +224,18 @@ export function ChessboardReact({
         
         if (onMoveAttempt) {
           const isValid = await onMoveAttempt(from, to);
+          if (isValid) {
+            // Calcular el FEN resultante del movimiento interactivo del usuario
+            // para evitar que la actualización de estado de Next.js fuerce una animación duplicada
+            const { Chess } = require("chess.js");
+            const tempChess = new Chess(propsRef.current.position);
+            try {
+              tempChess.move({ from, to, promotion: "q" });
+              lastInteractiveFenRef.current = tempChess.fen();
+            } catch (e) {
+              // Fallback seguro en caso de error de análisis
+            }
+          }
           return isValid; // true permite soltar la pieza, false la hace rebotar
         }
         return true;
