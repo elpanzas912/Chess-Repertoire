@@ -50,6 +50,21 @@ function materialScore(chess: Chess) {
   );
 }
 
+const PIECE_VAL: Record<string, number> = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
+
+function fallbackEvaluate(chess: Chess): number {
+  const board = chess.board();
+  let score = 0;
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const sq = board[r][c];
+      if (!sq) continue;
+      score += (sq.color === "w" ? 1 : -1) * PIECE_VAL[sq.type];
+    }
+  }
+  return score / 100;
+}
+
 function saveLearnedLine(slug: string, line: string) {
   const raw = localStorage.getItem("chessengineered_progress");
   const progress = raw ? JSON.parse(raw) : {};
@@ -172,6 +187,17 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const [pieceSet, setPieceSet] = useState<PieceSet>("staunty");
   const [boardTheme, setBoardTheme] = useState<BoardTheme>("green");
   const [learnedCount, setLearnedCount] = useState(() => getLearnedCount(slug));
+  
+  // Estados y referencias para la barra de evaluación asíncrona Stockfish
+  const [evalScore, setEvalScore] = useState<number>(0);
+  const [evalMate, setEvalMate] = useState<number | null>(null);
+  const [evalLoading, setEvalLoading] = useState<boolean>(false);
+  const [evalFallback, setEvalFallback] = useState<boolean>(false);
+
+  const evalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const evalSeqRef = useRef<number>(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentLine = opening.lines[lineIndex];
   const moves = useMemo(() => parseLine(currentLine), [currentLine]);
@@ -195,6 +221,75 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     if (hapticsEnabled && "vibrate" in navigator) navigator.vibrate(pattern);
   }
 
+  const updateEvaluation = useCallback((chess: Chess) => {
+    const fallbackScore = fallbackEvaluate(chess);
+    
+    // Configurar inmediatamente el loading y el fallbackScore (cálculo de material instantáneo)
+    setEvalScore(fallbackScore);
+    setEvalMate(null);
+    setEvalLoading(true);
+    setEvalFallback(false);
+
+    // Cancelar cualquier temporizador de debounce previo
+    if (evalTimerRef.current) {
+      clearTimeout(evalTimerRef.current);
+    }
+    // Cancelar cualquier petición HTTP anterior en curso
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const seq = ++evalSeqRef.current;
+    const fen = chess.fen();
+
+    evalTimerRef.current = setTimeout(async () => {
+      abortControllerRef.current = new AbortController();
+      const controller = abortControllerRef.current;
+
+      try {
+        const response = await fetch("https://chess-api.com/v1", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fen,
+            variants: 1,
+            depth: 8,
+            maxThinkingTime: 50,
+          }),
+          signal: controller.signal,
+        });
+
+        if (!response.ok) throw new Error(`API error ${response.status}`);
+        const data = await response.json();
+
+        if (seq !== evalSeqRef.current) return;
+
+        // Normalizar puntuación de Stockfish
+        let score = fallbackScore;
+        let mateValue = null;
+
+        if (data.mate !== null && data.mate !== undefined) {
+          const mate = Number(data.mate);
+          mateValue = mate;
+          const sign = mate >= 0 ? 1 : -1;
+          score = sign * (100 - Math.min(99, Math.abs(mate)));
+        } else if (Number.isFinite(Number(data.eval))) {
+          score = Number(data.eval);
+        } else if (Number.isFinite(Number(data.centipawns))) {
+          score = Number(data.centipawns) / 100;
+        }
+
+        setEvalScore(score);
+        setEvalMate(mateValue);
+        setEvalLoading(false);
+      } catch (err: any) {
+        if (err.name === "AbortError" || seq !== evalSeqRef.current) return;
+        setEvalLoading(false);
+        setEvalFallback(true);
+      }
+    }, 120); // Debounce de 120ms
+  }, []);
+
   const updateInstruction = useCallback((chess: Chess) => {
     setInstruction(opening.descriptions[chess.fen()] ?? "Encuentra el mejor movimiento para continuar la variante.");
   }, [opening.descriptions]);
@@ -212,7 +307,9 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
         return;
       }
       if (next.color === opening.playerSide) {
-        setGame(new Chess(chess.fen()));
+        const nextChess = new Chess(chess.fen());
+        setGame(nextChess);
+        updateEvaluation(nextChess);
         setMoveIndex(index);
         updateInstruction(chess);
         return;
@@ -222,7 +319,9 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       if (!move) return;
       index += 1;
       setLastMove({ from: move.from, to: move.to });
-      setGame(new Chess(chess.fen()));
+      const nextChess = new Chess(chess.fen());
+      setGame(nextChess);
+      updateEvaluation(nextChess);
       setMoveIndex(index);
       playSound(pieceSound(move, false), soundsEnabled);
       updateInstruction(chess);
@@ -230,7 +329,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     };
 
     timer.current = setTimeout(playNext, initialDelay);
-  }, [currentLine, moves, opening.playerSide, slug, soundsEnabled, updateInstruction]);
+  }, [currentLine, moves, opening.playerSide, slug, soundsEnabled, updateInstruction, updateEvaluation]);
 
   const startLine = useCallback((index: number) => {
     if (timer.current) clearTimeout(timer.current);
@@ -249,14 +348,17 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   useEffect(() => {
     const chess = new Chess();
     setGame(chess);
+    updateEvaluation(chess);
     setMoveIndex(0);
     setCompleted(false);
     playSound("game-start", soundsEnabled);
     playOpponentMoves(chess, 0, 240);
     return () => {
       if (timer.current) clearTimeout(timer.current);
+      if (evalTimerRef.current) clearTimeout(evalTimerRef.current);
+      if (abortControllerRef.current) abortControllerRef.current.abort();
     };
-  }, [lineIndex, playOpponentMoves, restartVersion]);
+  }, [lineIndex, playOpponentMoves, restartVersion, updateEvaluation]);
 
   function chooseSquare(square: Square) {
     if (!selected) {
@@ -288,7 +390,6 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       setSelected(null);
       setLegalTargets([]);
       setHint(null);
-
       if (expected.from !== from || expected.to !== to) {
         // Movimiento incorrecto
         const fenBefore = game.fen();
@@ -303,6 +404,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
         try {
           tempChess.move({ from, to, promotion: "q" });
           setGame(tempChess);
+          updateEvaluation(tempChess);
           setLastMove({ from, to });
         } catch (e) {
           // Fallback seguro en caso de que sea ilegal para chess.js
@@ -313,6 +415,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
           // Rollback: restauramos el FEN original de antes de la jugada errónea
           const originalChess = new Chess(fenBefore);
           setGame(originalChess);
+          updateEvaluation(originalChess);
           setLastMove(null);
         }, 500);
 
@@ -326,6 +429,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
       const nextIndex = moveIndex + 1;
       setGame(chess);
+      updateEvaluation(chess);
       setMoveIndex(nextIndex);
       setLastMove({ from, to });
       setFeedback({ square: to, type: "correct" });
@@ -340,7 +444,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
       return true; // Pieza se queda
     },
-    [completed, moves, moveIndex, opening.playerSide, game, soundsEnabled, vibrate, playOpponentMoves, updateInstruction],
+    [completed, moves, moveIndex, opening.playerSide, game, soundsEnabled, vibrate, playOpponentMoves, updateInstruction, updateEvaluation]
   );
 
   function attemptMove(from: Square, to: Square) {
@@ -417,8 +521,16 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
   const orderedRanks = opening.playerSide === "b" ? [...ranks].reverse() : ranks;
   const orderedFiles = opening.playerSide === "b" ? [...files].reverse() : files;
-  const score = materialScore(game);
-  const whitePercent = Math.max(5, Math.min(95, 50 + score * 4));
+  const clampedScore = Math.max(-10, Math.min(10, evalScore));
+  const whitePercent = Math.max(3, Math.min(97, 50 + (clampedScore / 10) * 45));
+  
+  const formatScoreText = () => {
+    if (evalMate !== null && evalMate !== undefined) {
+      return `${evalMate >= 0 ? "+" : "-"}M${Math.abs(evalMate)}`;
+    }
+    return evalScore >= 0 ? `+${evalScore.toFixed(1)}` : evalScore.toFixed(1);
+  };
+
   const progress = moves.length ? Math.round((moveIndex / moves.length) * 100) : 0;
   const nextExpected = moves[moveIndex];
 
@@ -439,8 +551,10 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
           <div className="trainer-v2-board-row">
             {showEval && (
-              <div className="trainer-v2-eval" aria-label={`Evaluación material ${score.toFixed(1)}`}>
-                <span>{score > 0 ? "+" : ""}{score.toFixed(1)}</span>
+              <div className="trainer-v2-eval" aria-label={`Evaluación ${formatScoreText()}`}>
+                <span className={`${evalLoading ? "is-loading" : ""} ${evalFallback ? "is-fallback" : ""}`}>
+                  {formatScoreText()}
+                </span>
                 <i style={{ height: `${whitePercent}%` }} />
               </div>
             )}
