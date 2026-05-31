@@ -269,7 +269,7 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
                   </div>
                   <div className="card-footer">
                     <Link
-                      href={`/openings/${slug}`}
+                      href={`/opening/${slug}`}
                       onClick={() => {
                         if (!canPickFree) return;
                         localStorage.setItem("chessengineered_free_opening", slug);

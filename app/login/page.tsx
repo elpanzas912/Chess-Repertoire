@@ -12,6 +12,11 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
+  function nextPath() {
+    const next = new URLSearchParams(window.location.search).get("next");
+    return next?.startsWith("/") ? next : "/openings";
+  }
+
   async function handleGoogleLogin() {
     setError(null);
 
@@ -23,7 +28,7 @@ export default function LoginPage() {
     setPending(true);
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/openings` },
+      options: { redirectTo: `${window.location.origin}${nextPath()}` },
     });
 
     if (oauthError) {
@@ -50,7 +55,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/openings");
+    router.push(nextPath());
   }
 
   return (
