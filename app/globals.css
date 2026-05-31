@@ -849,9 +849,35 @@ h2 {
 
 /* Opening trainer workbench */
 .trainer-v2-page {
-  background: #111113;
+  background: radial-gradient(circle at 50% 50%, rgba(20, 20, 26, 0.7) 0%, #09090b 100%);
   color: #f4f4f5;
   min-height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+.trainer-v2-glow {
+  border-radius: 50%;
+  filter: blur(140px);
+  opacity: 0.13;
+  pointer-events: none;
+  position: fixed;
+}
+
+.trainer-v2-glow.glow-one {
+  background: #7c3aed;
+  height: 620px;
+  left: -12%;
+  top: -14%;
+  width: 620px;
+}
+
+.trainer-v2-glow.glow-two {
+  background: #fbbf24;
+  bottom: -14%;
+  height: 520px;
+  right: -8%;
+  width: 520px;
 }
 
 .trainer-v2-loading {
@@ -879,6 +905,8 @@ h2 {
   justify-content: center;
   min-height: 100vh;
   padding: 24px 32px;
+  position: relative;
+  z-index: 2;
 }
 
 .trainer-v2-board-area {
@@ -923,8 +951,13 @@ h2 {
 }
 
 .trainer-v2-board-row {
+  background: rgba(18, 18, 24, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
   display: flex;
   gap: 8px;
+  padding: 16px;
 }
 
 .trainer-v2-eval {
@@ -960,7 +993,9 @@ h2 {
 
 .trainer-v2-board {
   aspect-ratio: 1;
-  border: 1px solid #303036;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
   display: grid;
   flex: 1;
   grid-template-columns: repeat(8, 1fr);
@@ -986,6 +1021,19 @@ h2 {
 .trainer-v2-square.dark {
   background: #4c946a;
 }
+
+.theme-white-violet .trainer-v2-square.light { background: #f2f0f7; }
+.theme-white-violet .trainer-v2-square.dark { background: #8f7ca8; }
+.theme-white-blue .trainer-v2-square.light { background: #f4f6f8; }
+.theme-white-blue .trainer-v2-square.dark { background: #7791ad; }
+.theme-blue .trainer-v2-square.light { background: #e8e6e3; }
+.theme-blue .trainer-v2-square.dark { background: #6b8ba5; }
+.theme-brown .trainer-v2-square.light { background: #f0d9b5; }
+.theme-brown .trainer-v2-square.dark { background: #b58863; }
+.theme-classic .trainer-v2-square.light { background: #ecdab9; }
+.theme-classic .trainer-v2-square.dark { background: #c5a076; }
+.theme-black-and-white .trainer-v2-square.light { background: #f4f4f5; }
+.theme-black-and-white .trainer-v2-square.dark { background: #71717a; }
 
 .trainer-v2-piece {
   display: block;
@@ -1032,6 +1080,17 @@ h2 {
   box-shadow: inset 0 0 0 4px #fbbf24;
 }
 
+.trainer-v2-arrow {
+  color: #fbbf24;
+  font-size: clamp(22px, 4vw, 52px);
+  font-weight: 800;
+  line-height: 1;
+  position: absolute;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  transform: rotate(-45deg);
+  z-index: 5;
+}
+
 @keyframes trainerHint {
   to { box-shadow: inset 0 0 0 7px #fbbf24; }
 }
@@ -1076,8 +1135,10 @@ h2 {
 
 .trainer-v2-panel {
   align-self: stretch;
-  background: #1b1b1f;
-  border: 1px solid #303036;
+  background: rgba(18, 18, 24, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1089,13 +1150,21 @@ h2 {
 }
 
 .trainer-v2-course-select {
+  position: relative;
+}
+
+.trainer-v2-course-select > button {
   align-items: center;
-  background: #222227;
-  border: 1px solid #34343b;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: #f4f4f5;
+  cursor: pointer;
   display: flex;
   gap: 12px;
   justify-content: space-between;
   padding: 11px 12px;
+  text-align: left;
+  width: 100%;
 }
 
 .trainer-v2-course-select span {
@@ -1116,12 +1185,65 @@ h2 {
   white-space: nowrap;
 }
 
-.trainer-v2-course-select select {
-  background: #18181b;
-  border: 1px solid #3f3f46;
+.trainer-v2-course-select b {
+  color: #a1a1aa;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.trainer-v2-course-select i {
+  font-size: 9px;
+  font-style: normal;
+}
+
+.trainer-v2-line-picker {
+  background: rgba(18, 18, 24, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  left: 0;
+  max-height: min(430px, 65vh);
+  overflow-y: auto;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 9;
+}
+
+.trainer-v2-line-picker button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   color: #e4e4e7;
-  max-width: 160px;
-  padding: 7px;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  padding: 11px 13px;
+  text-align: left;
+  width: 100%;
+}
+
+.trainer-v2-line-picker button:hover,
+.trainer-v2-line-picker button.active {
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.trainer-v2-line-picker span {
+  color: #a1a1aa;
+  display: block;
+  font-size: 11px;
+  min-width: 25px;
+}
+
+.trainer-v2-line-picker strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.trainer-v2-line-picker em {
+  color: #22c55e;
+  font-style: normal;
+  margin-left: auto;
 }
 
 .trainer-v2-dialog {
@@ -1152,8 +1274,8 @@ h2 {
 }
 
 .trainer-v2-modes button {
-  background: #222227;
-  border: 1px solid #34343b;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   color: #f4f4f5;
   cursor: pointer;
   display: grid;
@@ -1164,7 +1286,8 @@ h2 {
 }
 
 .trainer-v2-modes button.active {
-  border-color: #d59e35;
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.45);
 }
 
 .trainer-v2-modes button:disabled {
@@ -1212,7 +1335,9 @@ h2 {
   display: grid;
   gap: 9px;
   left: 0;
-  min-width: 210px;
+  max-height: min(72vh, 560px);
+  min-width: 278px;
+  overflow-y: auto;
   padding: 11px;
   position: absolute;
   z-index: 8;
@@ -1224,6 +1349,43 @@ h2 {
   display: flex;
   font-size: 12px;
   gap: 7px;
+}
+
+.trainer-v2-settings hr {
+  border: 0;
+  border-top: 1px solid #34343b;
+  margin: 2px 0;
+}
+
+.trainer-v2-settings select {
+  background: #222227;
+  border: 1px solid #3f3f46;
+  color: #f4f4f5;
+  margin-left: auto;
+  max-width: 135px;
+  padding: 4px;
+}
+
+.trainer-v2-settings button {
+  background: transparent;
+  border: 0;
+  color: #e4e4e7;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 5px 0;
+  text-align: left;
+}
+
+.trainer-v2-settings button:hover {
+  color: #fbbf24;
+}
+
+.trainer-v2-version {
+  align-self: center;
+  color: #71717a;
+  font-family: monospace;
+  font-size: 10px;
+  padding: 0 3px;
 }
 
 .trainer-v2-complete {
@@ -1248,6 +1410,10 @@ h2 {
 }
 
 @media (max-width: 980px) {
+  .trainer-v2-page {
+    overflow: auto;
+  }
+
   .trainer-v2-layout {
     display: block;
     min-height: auto;
@@ -1258,6 +1424,14 @@ h2 {
     max-height: none;
     max-width: none;
     width: 100%;
+  }
+
+  .trainer-v2-board-row {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
   }
 
   .trainer-v2-panel {

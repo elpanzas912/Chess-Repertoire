@@ -24,6 +24,8 @@ type CourseMove = {
 };
 
 type Feedback = { square: Square; type: "correct" | "wrong" } | null;
+type PieceSet = "staunty" | "maestro" | "standard";
+type BoardTheme = "green" | "white-violet" | "white-blue" | "blue" | "brown" | "classic" | "black-and-white";
 
 const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
 const ranks = ["8", "7", "6", "5", "4", "3", "2", "1"];
@@ -66,7 +68,8 @@ function getLearnedCount(slug: string) {
   }
 }
 
-function playSound(name: string) {
+function playSound(name: string, enabled = true) {
+  if (!enabled) return;
   const audio = new Audio(`/sounds/${name}.mp3`);
   audio.volume = 0.45;
   void audio.play().catch(() => undefined);
@@ -159,12 +162,37 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const [completed, setCompleted] = useState(false);
   const [hint, setHint] = useState<Square | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [linePickerOpen, setLinePickerOpen] = useState(false);
   const [showDialog, setShowDialog] = useState(true);
   const [showEval, setShowEval] = useState(true);
+  const [soundsEnabled, setSoundsEnabled] = useState(true);
+  const [hapticsEnabled, setHapticsEnabled] = useState(true);
+  const [trainingArrows, setTrainingArrows] = useState(true);
+  const [pieceSet, setPieceSet] = useState<PieceSet>("staunty");
+  const [boardTheme, setBoardTheme] = useState<BoardTheme>("green");
   const [learnedCount, setLearnedCount] = useState(() => getLearnedCount(slug));
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentLine = opening.lines[lineIndex];
   const moves = useMemo(() => parseLine(currentLine), [currentLine]);
+
+  useEffect(() => {
+    setShowEval(localStorage.getItem("chessengineered_show_eval") !== "false");
+    setShowDialog(localStorage.getItem("chessengineered_show_dialog") !== "false");
+    setSoundsEnabled(localStorage.getItem("chessengineered_sound") !== "false");
+    setHapticsEnabled(localStorage.getItem("chessengineered_haptic") !== "false");
+    setTrainingArrows(localStorage.getItem("chessengineered_training_arrows") !== "false");
+    setPieceSet((localStorage.getItem("chessengineered_piece_set") as PieceSet) || "staunty");
+    setBoardTheme((localStorage.getItem("chessengineered_board_theme") as BoardTheme) || "green");
+  }, []);
+
+  function persistBoolean(key: string, value: boolean, setter: (value: boolean) => void) {
+    localStorage.setItem(key, String(value));
+    setter(value);
+  }
+
+  function vibrate(pattern: number | number[]) {
+    if (hapticsEnabled && "vibrate" in navigator) navigator.vibrate(pattern);
+  }
 
   const updateInstruction = useCallback((chess: Chess) => {
     setInstruction(opening.descriptions[chess.fen()] ?? "Encuentra el mejor movimiento para continuar la variante.");
@@ -180,7 +208,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
         setCompleted(true);
         saveLearnedLine(slug, currentLine);
         setLearnedCount(getLearnedCount(slug));
-        playSound("game-end");
+        playSound("game-end", soundsEnabled);
         return;
       }
       if (next.color === opening.playerSide) {
@@ -196,13 +224,13 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       setLastMove({ from: move.from, to: move.to });
       setGame(new Chess(chess.fen()));
       setMoveIndex(index);
-      playSound(pieceSound(move, false));
+      playSound(pieceSound(move, false), soundsEnabled);
       updateInstruction(chess);
       timer.current = setTimeout(playNext, 340);
     };
 
     timer.current = setTimeout(playNext, 240);
-  }, [currentLine, moves, opening.playerSide, slug, updateInstruction]);
+  }, [currentLine, moves, opening.playerSide, slug, soundsEnabled, updateInstruction]);
 
   const startLine = useCallback((index: number) => {
     if (timer.current) clearTimeout(timer.current);
@@ -223,7 +251,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     setGame(chess);
     setMoveIndex(0);
     setCompleted(false);
-    playSound("game-start");
+    playSound("game-start", soundsEnabled);
     playOpponentMoves(chess, 0);
     return () => {
       if (timer.current) clearTimeout(timer.current);
@@ -265,7 +293,8 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
     if (expected.from !== from || expected.to !== to) {
       setFeedback({ square: to, type: "wrong" });
-      playSound("illegal");
+      vibrate([18, 20, 18]);
+      playSound("illegal", soundsEnabled);
       timer.current = setTimeout(() => setFeedback(null), 520);
       return;
     }
@@ -278,7 +307,8 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     setMoveIndex(nextIndex);
     setLastMove({ from, to });
     setFeedback({ square: to, type: "correct" });
-    playSound(pieceSound(move, true));
+    vibrate(10);
+    playSound(pieceSound(move, true), soundsEnabled);
     updateInstruction(chess);
     timer.current = setTimeout(() => {
       setFeedback(null);
@@ -304,6 +334,20 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     if (from) attemptMove(from, square);
   }
 
+  async function copyText(value: string) {
+    await navigator.clipboard.writeText(value);
+    setSettingsOpen(false);
+  }
+
+  function resetProgress() {
+    const progress = JSON.parse(localStorage.getItem("chessengineered_progress") ?? "{}");
+    progress[slug] = {};
+    localStorage.setItem("chessengineered_progress", JSON.stringify(progress));
+    setLearnedCount(0);
+    startLine(0);
+    setSettingsOpen(false);
+  }
+
   const orderedRanks = opening.playerSide === "b" ? [...ranks].reverse() : ranks;
   const orderedFiles = opening.playerSide === "b" ? [...files].reverse() : files;
   const score = materialScore(game);
@@ -312,7 +356,9 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const nextExpected = moves[moveIndex];
 
   return (
-    <main className="trainer-v2-page">
+    <main className={`trainer-v2-page theme-${boardTheme}`}>
+      <div className="trainer-v2-glow glow-one" />
+      <div className="trainer-v2-glow glow-two" />
       <div className="trainer-v2-layout">
         <section className="trainer-v2-board-area">
           <div className="trainer-v2-progress-row">
@@ -358,12 +404,13 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                       {piece && (
                         <span className="trainer-v2-piece" draggable onDragStart={(event) => startDrag(event, square)}>
                           <svg viewBox="0 0 40 40">
-                            <use href={`/pieces/staunty.svg#${id}`} />
+                            <use href={`/pieces/${pieceSet}.svg#${id}`} />
                           </svg>
                         </span>
                       )}
                       {fileIndex === 0 && <em className="rank-label">{rank}</em>}
                       {rankIndex === 7 && <em className="file-label">{file}</em>}
+                      {trainingArrows && hint === square && nextExpected && <span className="trainer-v2-arrow">→</span>}
                       {feedback?.square === square && <b className={`trainer-v2-feedback ${feedback.type}`}>{feedback.type === "correct" ? "✓" : "×"}</b>}
                     </button>
                   );
@@ -382,12 +429,31 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
         </section>
 
         <aside className="trainer-v2-panel">
-          <label className="trainer-v2-course-select">
-            <span><strong>Aprender</strong><small>{opening.displayName.replace(" Mastery", "")}</small></span>
-            <select onChange={(event) => startLine(Number(event.target.value))} value={lineIndex}>
-              {opening.lines.map((line, index) => <option key={line} value={index}>#{index + 1} {opening.lineNames[line] ?? `Línea ${index + 1}`}</option>)}
-            </select>
-          </label>
+          <div className="trainer-v2-course-select">
+            <button onClick={() => setLinePickerOpen((open) => !open)} type="button">
+              <span><strong>Aprender</strong><small>{opening.displayName.replace(" Mastery", "")}</small></span>
+              <b>#{lineIndex + 1} <i>{linePickerOpen ? "▲" : "▼"}</i></b>
+            </button>
+            {linePickerOpen && (
+              <div className="trainer-v2-line-picker">
+                {opening.lines.map((line, index) => (
+                  <button
+                    className={index === lineIndex ? "active" : ""}
+                    key={line}
+                    onClick={() => {
+                      startLine(index);
+                      setLinePickerOpen(false);
+                    }}
+                    type="button"
+                  >
+                    <span>#{index + 1}</span>
+                    <strong>{opening.lineNames[line] ?? `Línea ${index + 1}`}</strong>
+                    {index < learnedCount && <em>✓</em>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {showDialog && (
             <div className="trainer-v2-dialog">
@@ -412,11 +478,51 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
               {settingsOpen && (
                 <div className="trainer-v2-settings">
                   <strong>Ajustes</strong>
-                  <label><input checked={showEval} onChange={(event) => setShowEval(event.target.checked)} type="checkbox" /> Barra de evaluación</label>
-                  <label><input checked={showDialog} onChange={(event) => setShowDialog(event.target.checked)} type="checkbox" /> Instrucciones</label>
+                  <label><input checked={showEval} onChange={(event) => persistBoolean("chessengineered_show_eval", event.target.checked, setShowEval)} type="checkbox" /> Barra de evaluación</label>
+                  <label><input checked={soundsEnabled} onChange={(event) => persistBoolean("chessengineered_sound", event.target.checked, setSoundsEnabled)} type="checkbox" /> Sonidos</label>
+                  <label><input checked={hapticsEnabled} onChange={(event) => persistBoolean("chessengineered_haptic", event.target.checked, setHapticsEnabled)} type="checkbox" /> Vibración</label>
+                  <hr />
+                  <strong>Estilo del tablero</strong>
+                  <label>Piezas
+                    <select onChange={(event) => {
+                      const value = event.target.value as PieceSet;
+                      localStorage.setItem("chessengineered_piece_set", value);
+                      setPieceSet(value);
+                    }} value={pieceSet}>
+                      <option value="staunty">Staunty</option>
+                      <option value="maestro">Maestro</option>
+                      <option value="standard">Standard</option>
+                    </select>
+                  </label>
+                  <label>Tema
+                    <select onChange={(event) => {
+                      const value = event.target.value as BoardTheme;
+                      localStorage.setItem("chessengineered_board_theme", value);
+                      setBoardTheme(value);
+                    }} value={boardTheme}>
+                      <option value="green">Verde</option>
+                      <option value="white-violet">Blanco violeta</option>
+                      <option value="white-blue">Blanco azul</option>
+                      <option value="blue">Azul</option>
+                      <option value="brown">Marrón</option>
+                      <option value="classic">Clásico</option>
+                      <option value="black-and-white">Blanco y negro</option>
+                    </select>
+                  </label>
+                  <hr />
+                  <strong>Aprendizaje</strong>
+                  <label><input checked={trainingArrows} onChange={(event) => persistBoolean("chessengineered_training_arrows", event.target.checked, setTrainingArrows)} type="checkbox" /> Flechas de ayuda</label>
+                  <label><input checked={showDialog} onChange={(event) => persistBoolean("chessengineered_show_dialog", event.target.checked, setShowDialog)} type="checkbox" /> Instrucciones</label>
+                  <hr />
+                  <strong>Exportar</strong>
+                  <button onClick={() => window.open(`https://lichess.org/analysis/${encodeURIComponent(game.fen())}`, "_blank", "noopener,noreferrer")} type="button">Abrir en Lichess</button>
+                  <button onClick={() => void copyText(currentLine)} type="button">Copiar PGN</button>
+                  <button onClick={() => void copyText(game.fen())} type="button">Copiar FEN</button>
+                  <button onClick={resetProgress} type="button">Reiniciar progreso</button>
                 </div>
               )}
             </div>
+            <span className="trainer-v2-version">v1.4.0</span>
             <button onClick={() => setHint(nextExpected?.from ?? null)} type="button">Pista</button>
             <button onClick={() => startLine(lineIndex)} type="button">Reiniciar</button>
           </footer>
