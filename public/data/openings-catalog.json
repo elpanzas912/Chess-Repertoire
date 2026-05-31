@@ -1,0 +1,200 @@
+{
+  "openings": {
+    "alapin-sicilian": {
+      "id": "70208038-e9e0-42fe-8b77-bad138426a5c",
+      "displayName": "Alapin Sicilian Mastery",
+      "playerSide": "w",
+      "lineCount": 55,
+      "description": "Let's learn the Alapin Sicilian! This is the perfect way to shut down ANYONE who plays the sicilian against you. We begin with pawn to e4"
+    },
+    "albin-countergambit": {
+      "id": "9a4027ad-47ec-40c5-b486-6799db501453",
+      "displayName": "Albin Countergambit Mastery",
+      "playerSide": "b",
+      "lineCount": 54,
+      "description": "Look, I like the Queen's Gambit. It was a good TV show. But I HATE playing against the opening. Let's crush the Queen's Gambit with the Albin Countergambit. When they try to give us a pawn, we flip the script and gambit our OWN pawn. First step: play into the Queen's Gambit with pawn to d5."
+    },
+    "bishop-s-opening": {
+      "id": "2c7fabd5-4ce2-4e08-af0f-8662c05cb903",
+      "displayName": "Bishop's Opening Mastery",
+      "playerSide": "w",
+      "lineCount": 63,
+      "description": "Let's learn the Bishop's Opening! It's one of the trappiest openings I've ever seen, and you'll pretty much always be winning in the first few moves. First step: pawn to e4."
+    },
+    "caro-kann": {
+      "id": "48efcad8-1be4-407a-945c-8ce2b255fe58",
+      "displayName": "Caro-Kann Mastery",
+      "playerSide": "b",
+      "lineCount": 60,
+      "description": "Let's learn the Caro-Kann! This opening was invented in 1886 by GM Levy Rozman and remains one of the best counter attacks to white playing pawn e4. OK, not all of that is true, but let's start with playing with pawn to c6."
+    },
+    "danish-gambit": {
+      "id": "ae5ef23e-63a7-4b4c-95a3-b5b8c58a8348",
+      "displayName": "Danish Gambit Mastery",
+      "playerSide": "w",
+      "lineCount": 58,
+      "description": "Let's learn the Danish Gambit! You will sacrifice a pawn, and then another one, and then ANOTHER one. Yes, a 3 pawn sacrifice in your first 4 moves. In return you'll get a huge attack on your opponent. Let's begin with moving the King's pawn to e4."
+    },
+    "english": {
+      "id": "0e0a615d-599d-4e93-8ac1-ce977c3edb80",
+      "displayName": "English Mastery",
+      "playerSide": "w",
+      "lineCount": 53,
+      "description": "Let's learn the English! Instead of pushing our central pawns, we umm... we push our non-central pawns. It's the greatest breakthrough in chess since en passant! To start, we push our c-pawn to c4"
+    },
+    "englund-gambit": {
+      "id": "e95cbf45-8976-4b58-b27b-372bd954341e",
+      "displayName": "Englund Gambit Mastery",
+      "playerSide": "b",
+      "lineCount": 40,
+      "description": "Let's learn the Englund Gambit. A nasty weapon you can use against your opponent when they start with the Queen's pawn. The Gambit actually begins on our first move, completely giving away our pawn with pawn to e5."
+    },
+    "french-defense": {
+      "id": "57f09a76-8199-46bc-9c59-fff03cebceba",
+      "displayName": "French Defense Mastery",
+      "playerSide": "b",
+      "lineCount": 63,
+      "description": "Let's learn the french defense! I've had ENOUGH of these pawn-e4 players. It's time we stopped them once and for all. So how do we do it? We start off the french with pawn to e6."
+    },
+    "fried-liver-attack": {
+      "id": "ea5e40fd-5f90-466d-baf6-f4e61147ac01",
+      "displayName": "Fried Liver Attack Mastery",
+      "playerSide": "w",
+      "lineCount": 52,
+      "description": "Let's learn the Fried Liver Attack, one of the most dangerous openings in chess. An opening where you can potentially checkmate your opponent in 8 moves. It starts with pawn to e4."
+    },
+    "italian-game": {
+      "id": "f56eeada-c725-4246-a83b-b5d2286740f1",
+      "displayName": "Italian Game Mastery",
+      "playerSide": "w",
+      "lineCount": 68,
+      "description": "Let's learn the Italian game! This is by far the most played opening at the non-professional level. It's traditional, it's old school, it's chess the way your grandpa taught you. Let's just get into it with pawn to e4."
+    },
+    "jobava-london": {
+      "id": "3ad7736e-6d3e-4fb5-a92c-c6f9631dc668",
+      "displayName": "Jobava London Mastery",
+      "playerSide": "w",
+      "lineCount": 66,
+      "description": "Let's learn the Jobava London! If you want a solid opening, this right here is a solid opening. If you want a coin flip, idk go learn the Englund Gambit or something.  This course right here is for WINNERS! Now let's begin with pawn to d4."
+    },
+    "king-s-gambit": {
+      "id": "fb098b6d-d182-44a0-a581-b928afd8925c",
+      "displayName": "King's Gambit Mastery",
+      "playerSide": "w",
+      "lineCount": 36,
+      "description": "Let's learn the King's Gambit! On move 2 we'll shoot ourselves in the foot by giving away a pawn and weakening our king - but if Black doesn't know all the tricks and traps it will be us who is victorious (and suffering from an injured foot). We begin with pawn to e4."
+    },
+    "king-s-indian-defense": {
+      "id": "f183eb9f-63ab-4fd0-9401-fa180547f9ae",
+      "displayName": "King's Indian Defense Mastery",
+      "playerSide": "b",
+      "lineCount": 65,
+      "description": "Let’s learn the King’s Indian Defense! My chess coach always told me: control the center, develop your pieces, castle early. But let’s be real—that’s soooo basic. In this opening, we flip the script. First, we rush to castle, willingly give up the center, and only then do we strike back with our pawns. This leads to extremely fun games when White plays d4. Step 1: knight to f6."
+    },
+    "london": {
+      "id": "269eed1f-4664-4997-b4fa-dd32fe9a2f84",
+      "displayName": "London Mastery",
+      "playerSide": "w",
+      "lineCount": 63,
+      "description": "Let's learn the London system! Before we get started, I have to warn you: this opening is basically the same 5 boring moves over and over and nobody will be your friend. If you're ok with that, then let's get started with pawn to d4."
+    },
+    "petrov-defense": {
+      "id": "41325fc1-391b-4385-9f32-e4620a330db9",
+      "displayName": "Petrov Defense Mastery",
+      "playerSide": "b",
+      "lineCount": 61,
+      "description": "Let's learn the Petrov Defense! Petrov? Petroff? However you say it, this opening will take white completely by surprise. They'll be on your turf, and there's barely any moves to memorize. We start by playing pawn to e5."
+    },
+    "ponziani": {
+      "id": "a49b3b1e-c20c-42e5-bb39-c0511c109655",
+      "displayName": "Ponziani Mastery",
+      "playerSide": "w",
+      "lineCount": 50,
+      "description": "Let's learn a tricky and dangerous opening weapon: the Ponziani. Start by pushing the king's pawn forward two squares to e4."
+    },
+    "queen-s-gambit-accepted": {
+      "id": "fec78d4c-d877-4b3e-a6b3-af27dcca8670",
+      "displayName": "Queen's Gambit Accepted Mastery",
+      "playerSide": "w",
+      "lineCount": 59,
+      "description": "OK Beth, let's learn the Queen's Gambit (accepted). We start with, of course, the queen's pawn to d4."
+    },
+    "queen-s-gambit-declined": {
+      "id": "fd61b495-ecec-45be-a002-bdb41b73530c",
+      "displayName": "Queen's Gambit Declined Mastery",
+      "playerSide": "w",
+      "lineCount": 54,
+      "description": "OK Mrs. Harmon, let's learn the Queen's Gambit (Declined). We start with, of course, the queen's pawn to d4."
+    },
+    "rousseau-gambit": {
+      "id": "a110553c-3f06-461a-99f3-8d90be002e48",
+      "displayName": "Rousseau Gambit Mastery",
+      "playerSide": "b",
+      "lineCount": 55,
+      "description": "Let's learn the Rousseau Gambit! I don't even know where to begin with this opening... it is SO aggressive. It is SO trappy. Best of all, it is SO fun. We begin with pawn to e5."
+    },
+    "ruy-lopez": {
+      "id": "9518913b-ee12-41f2-8e36-f110473b4b46",
+      "displayName": "Ruy Lopez Mastery",
+      "playerSide": "w",
+      "lineCount": 91,
+      "description": "Let's learn the Ruy Lopez! This opening is unstoppable. It's irrefutable. It's so good that not a single line in this ENTIRE course will leave you in a bad position. Master this course, and I guarantee you'll have a significant advantage in every game you play. First things first: pawn to e4."
+    },
+    "scandinavian-defense": {
+      "id": "976d8003-a0ff-4ab3-b949-99c0aa5af467",
+      "displayName": "Scandinavian Defense Mastery",
+      "playerSide": "b",
+      "lineCount": 54,
+      "description": "Let's learn the Scandinavian Defense! There's no dilly-dallying on this one. After White plays e4 we force the issue immediately with pawn to d5."
+    },
+    "scotch-game": {
+      "id": "b435ec78-2107-4882-9318-7053faf7e55a",
+      "displayName": "Scotch Game Mastery",
+      "playerSide": "w",
+      "lineCount": 66,
+      "description": "Let's learn the scotch game! This opening literally just feels like a cheat code - it's so easy to get a winning position in just a few moves, and ALL of black's most common responses, especially at <2000 ELO, will make them lose on the spot. We begin with pawn to e4."
+    },
+    "sicilian-defense": {
+      "id": "9c0aa303-fcb1-4776-892a-e01ec0b7c775",
+      "displayName": "Sicilian Defense Mastery",
+      "playerSide": "b",
+      "lineCount": 66,
+      "description": "Let's learn the Sicilian Defense! Legends like Kasparov, Fischer, and Carlsen mastered this opening — and who knows, maybe after this course, your name will be on that list too. Or hey, maybe you’re just trying to claw your way out of 600 ELO. Either way, you’re in the right place. Pawn to c5."
+    },
+    "stafford-gambit": {
+      "id": "2f7e04b3-30c3-4d9d-848e-81adf0629e7f",
+      "displayName": "Stafford Gambit Mastery",
+      "playerSide": "b",
+      "lineCount": 59,
+      "description": "Let's learn the most venomous, tricky, and trappy opening I know: the Stafford Gambit! First, let's respond to pawn e4 with pawn e5."
+    },
+    "traxler-counterattack": {
+      "id": "674fb00b-15df-4175-a3c6-efaa75058bb5",
+      "displayName": "Traxler Counterattack Mastery",
+      "playerSide": "b",
+      "lineCount": 67,
+      "description": "Let's learn the Traxler Counterattack! It's a cold, evil, vicious response to the Fried Liver Attack. It's so poisonous, that I... well I don't even know what to say. I really just want to jump right in and show you. First up, pawn to e5."
+    },
+    "vienna-gambit-counter": {
+      "id": "95b06348-fc05-4b11-8468-1f9fdd6a5649",
+      "displayName": "Vienna Gambit Counter Mastery",
+      "playerSide": "b",
+      "lineCount": 51,
+      "description": "Well, well, well. So you took the Vienna Gambit course, and now you want to find out how to BEAT the Vienna Gambit? You came to the right place. Let's begin: pawn to e5."
+    },
+    "vienna-gambit": {
+      "id": "5bb3485d-ff1c-49b0-aa92-37c57b2e6589",
+      "displayName": "Vienna Gambit Mastery",
+      "playerSide": "w",
+      "lineCount": 57,
+      "description": "Let's learn one of the most crushing openings for White: The Vienna. Start by pushing the king's pawn forward two squares to e4."
+    },
+    "vienna-game": {
+      "id": "2ce89eb7-0fba-497d-aa22-13ed152af6f6",
+      "displayName": "Vienna Game Mastery",
+      "playerSide": "w",
+      "lineCount": 63,
+      "description": "Let's learn the Vienna Game! If you loved the Vienna Gambit, and want to know what happens if the opponent doesn't play that knight move - this is the course for you. Let's start the same way: pawn to e4."
+    }
+  }
+}

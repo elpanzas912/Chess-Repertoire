@@ -1,0 +1,9 @@
+node_modules/
+.next/
+out/
+.env*
+!.env.example
+*.log
+*.tsbuildinfo
+mastery_courses/
+supabase/storage/private-opening-data/
