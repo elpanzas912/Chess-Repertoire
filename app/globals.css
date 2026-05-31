@@ -1455,24 +1455,7 @@ h2 {
   opacity: 0.35;
 }
 
-/* cm-chessboard coloca la pieza arrastrada directamente en el body */
 .cm-chessboard-draggable-piece {
   z-index: 9999 !important;
-}
-
-.correct-checkmark circle,
-.incorrect-cross circle {
-  animation: scale-up 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
-}
-
-@keyframes scale-up {
-  0% {
-    transform: scale(0);
-    transform-origin: 50% 50%;
-  }
-  100% {
-    transform: scale(1);
-    transform-origin: 50% 50%;
-  }
 }
 
