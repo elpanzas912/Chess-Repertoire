@@ -7,3 +7,5 @@ out/
 *.tsbuildinfo
 mastery_courses/
 supabase/storage/private-opening-data/
+
+.vercel
