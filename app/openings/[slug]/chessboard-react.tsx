@@ -105,7 +105,7 @@ export function ChessboardReact({
       const cssClass = storedTheme === "classic" ? "default" : storedTheme;
 
       board = new Chessboard(containerRef.current, {
-        assetsUrl: "/lib/cm-chessboard-assets/",
+        assetsUrl: "/cm-chessboard-assets/",
         assetsCache: false,
         position: propsRef.current.position,
         style: {
