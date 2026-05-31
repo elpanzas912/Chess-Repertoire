@@ -13,7 +13,7 @@ interface ChessboardReactProps {
   boardTheme: BoardTheme;
   inputEnabled: boolean;
   inputColor: "w" | "b";
-  onMoveAttempt?: (from: Square, to: Square) => boolean | Promise<boolean>;
+  onMoveAttempt?: (from: Square, to: Square) => boolean;
   onMoveFinished?: (from: Square, to: Square, legal: boolean) => void;
   lastMove?: { from: Square; to: Square } | null;
   hintSquare?: Square | null;
@@ -196,7 +196,7 @@ export function ChessboardReact({
 
     const { COLOR, INPUT_EVENT_TYPE } = require("../../../lib/cm-chessboard-src/Chessboard.js");
 
-    const moveInputHandler = async (event: any) => {
+    const moveInputHandler = (event: any) => {
       const { onMoveAttempt, gameInstance, showLegalMarkers } = propsRef.current;
 
       if (event.type === INPUT_EVENT_TYPE.moveInputStarted) {
@@ -223,7 +223,7 @@ export function ChessboardReact({
         const to = event.squareTo as Square;
         
         if (onMoveAttempt) {
-          const isValid = await onMoveAttempt(from, to);
+          const isValid = onMoveAttempt(from, to);
           if (isValid) {
             // Calcular el FEN resultante del movimiento interactivo del usuario
             // para evitar que la actualización de estado de Next.js fuerce una animación duplicada
