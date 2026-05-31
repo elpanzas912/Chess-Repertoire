@@ -65,7 +65,7 @@ function BoardPreview({ side, slug }: { side: string; slug: string }) {
 function BrandMark() {
   return (
     <span className="brand-mark" aria-hidden="true">
-      ♞
+      ♜
     </span>
   );
 }
@@ -145,8 +145,8 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
   }
 
   return (
-    <div className="app-shell">
-      <header className="site-header">
+    <div className="app-shell library-v2">
+      <header className="site-header library-v2-nav">
         <Link className="brand" href="/openings">
           <BrandMark />
           <span>chessengineered</span>
@@ -163,20 +163,26 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
             </>
           ) : (
             <Link className="text-button" href="/login">
-              Iniciar sesión
+              Entrar
             </Link>
           )}
         </nav>
       </header>
 
+      <section className="library-v2-hero">
+        <div>
+          <p className="page-context">Repertorio de aperturas</p>
+          <h1>Domina tu <em>repertorio.</em></h1>
+          <p className="page-description">
+            Aprende cada variante movimiento por movimiento y construye una preparación que puedas recordar.
+          </p>
+        </div>
+      </section>
+
       <main className="library-shell">
-        <section className="library-header">
+        <section className="library-header library-v2-summary">
           <div>
-            <p className="page-context">Repertorio de aperturas</p>
-            <h1>Practica una apertura</h1>
-            <p className="page-description">
-              Aprende cada variante con ejercicios breves, movimiento por movimiento.
-            </p>
+            <p className="library-v2-section-label">Biblioteca de aperturas</p>
           </div>
           <div className="library-stats" aria-label="Resumen de biblioteca">
             <div>
@@ -191,7 +197,7 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
         </section>
 
         {!hasSubscription && (
-          <section className="plan-note">
+          <section className="plan-note library-v2-plan">
             <div>
               <strong>{freeOpening ? "Tu apertura gratuita está activa" : "Elige una apertura gratuita"}</strong>
               <p>
@@ -204,7 +210,7 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
           </section>
         )}
 
-        <section className="library-toolbar" aria-label="Filtros de aperturas">
+        <section className="library-toolbar library-v2-toolbar" aria-label="Filtros de aperturas">
           <div className="filter-group">
             {[
               ["all", "Todas"],
@@ -217,11 +223,12 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
                 onClick={() => setSide(value as SideFilter)}
                 type="button"
               >
+                <span className="library-v2-filter-dot" />
                 {label}
               </button>
             ))}
           </div>
-          <label className="search-box">
+          <label className="search-box library-v2-search">
             <span aria-hidden="true">⌕</span>
             <input
               onChange={(event) => setQuery(event.target.value)}
@@ -232,7 +239,7 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
           </label>
         </section>
 
-        <div className="result-row">
+        <div className="result-row library-v2-results">
           <strong>{visibleOpenings.length} aperturas</strong>
           <span>{totalLines} líneas disponibles</span>
         </div>
@@ -248,14 +255,17 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
             const canPickFree = !hasSubscription && !freeOpening;
 
             return (
-              <article className="opening-card" key={opening.id}>
+              <article className={`opening-card library-v2-card ${isUnlocked ? "is-unlocked" : "is-locked"}`} key={opening.id}>
                 <BoardPreview side={opening.playerSide} slug={slug} />
                 <div className="opening-card-content">
                   <div className="card-heading">
                     <h2>{opening.displayName.replace(" Mastery", "")}</h2>
-                    <span className={`side-label side-${opening.playerSide}`}>
-                      {opening.playerSide === "w" ? "Blancas" : "Negras"}
-                    </span>
+                    <div className="library-v2-badges">
+                      <span className={`side-label side-${opening.playerSide}`}>
+                        {opening.playerSide === "w" ? "Blancas" : "Negras"}
+                      </span>
+                      {isUnlocked && <span className="library-v2-unlocked">Activa</span>}
+                    </div>
                   </div>
                   <p>{compactDescription(opening.description)}</p>
                   <div className="progress-copy">
@@ -276,7 +286,7 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
                         setFreeOpening(slug);
                       }}
                     >
-                      {isUnlocked ? "Continuar curso" : canPickFree ? "Elegir gratis" : "Ver curso"}
+                      {isUnlocked ? "Continuar curso" : canPickFree ? "Elegir gratis" : "Ver curso"} <span aria-hidden="true">→</span>
                     </Link>
                     {!isUnlocked && !canPickFree && <span className="locked">Bloqueada</span>}
                   </div>

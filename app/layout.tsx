@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "../lib/cm-chessboard-assets/chessboard.css";
+import "../lib/cm-chessboard-assets/extensions/markers/markers.css";
 
 export const metadata: Metadata = {
   title: "ChessEngineered | Opening repertoire",

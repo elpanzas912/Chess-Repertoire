@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Chess, type Square } from "chess.js";
 import { supabase } from "../../../lib/supabase";
+import { ChessboardReact } from "./chessboard-react";
 
 type Opening = {
   id: string;
@@ -276,6 +277,50 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     attemptMove(selected, square);
   }
 
+  const handleMoveAttempt = useCallback(
+    (from: Square, to: Square) => {
+      if (completed) return false;
+      const expected = moves[moveIndex];
+      if (!expected || expected.color !== opening.playerSide) return false;
+
+      const legal = game.moves({ square: from, verbose: true }).find((m) => m.to === to);
+      if (!legal) return false;
+
+      setSelected(null);
+      setLegalTargets([]);
+      setHint(null);
+
+      if (expected.from !== from || expected.to !== to) {
+        setFeedback({ square: to, type: "wrong" });
+        vibrate([18, 20, 18]);
+        playSound("illegal", soundsEnabled);
+        setTimeout(() => setFeedback(null), 500);
+        return false; // Pieza rebota
+      }
+
+      const chess = new Chess(game.fen());
+      const move = chess.move({ from, to, promotion: "q" });
+      if (!move) return false;
+
+      const nextIndex = moveIndex + 1;
+      setGame(chess);
+      setMoveIndex(nextIndex);
+      setLastMove({ from, to });
+      setFeedback({ square: to, type: "correct" });
+      vibrate(10);
+      playSound(pieceSound(move, true), soundsEnabled);
+      updateInstruction(chess);
+
+      setTimeout(() => {
+        setFeedback(null);
+        playOpponentMoves(chess, nextIndex);
+      }, 350);
+
+      return true; // Pieza se queda
+    },
+    [completed, moves, moveIndex, opening.playerSide, game, soundsEnabled, vibrate, playOpponentMoves, updateInstruction],
+  );
+
   function attemptMove(from: Square, to: Square) {
     if (completed) return;
     const expected = moves[moveIndex];
@@ -377,45 +422,21 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                 <i style={{ height: `${whitePercent}%` }} />
               </div>
             )}
-            <div className="trainer-v2-board" role="grid" aria-label="Tablero de ajedrez">
-              {orderedRanks.flatMap((rank, rankIndex) =>
-                orderedFiles.map((file, fileIndex) => {
-                  const square = `${file}${rank}` as Square;
-                  const piece = game.get(square);
-                  const id = piece ? `${piece.color}${piece.type}` : "";
-                  const className = [
-                    "trainer-v2-square",
-                    (files.indexOf(file) + Number(rank)) % 2 === 0 ? "dark" : "light",
-                    selected === square ? "selected" : "",
-                    legalTargets.includes(square) ? "legal" : "",
-                    lastMove?.from === square || lastMove?.to === square ? "last" : "",
-                    hint === square ? "hint" : "",
-                  ].join(" ");
-                  return (
-                    <button
-                      className={className}
-                      key={square}
-                      onClick={() => chooseSquare(square)}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={(event) => drop(event, square)}
-                      role="gridcell"
-                      type="button"
-                    >
-                      {piece && (
-                        <span className="trainer-v2-piece" draggable onDragStart={(event) => startDrag(event, square)}>
-                          <svg viewBox="0 0 40 40">
-                            <use href={`/pieces/${pieceSet}.svg#${id}`} />
-                          </svg>
-                        </span>
-                      )}
-                      {fileIndex === 0 && <em className="rank-label">{rank}</em>}
-                      {rankIndex === 7 && <em className="file-label">{file}</em>}
-                      {trainingArrows && hint === square && nextExpected && <span className="trainer-v2-arrow">→</span>}
-                      {feedback?.square === square && <b className={`trainer-v2-feedback ${feedback.type}`}>{feedback.type === "correct" ? "✓" : "×"}</b>}
-                    </button>
-                  );
-                }),
-              )}
+            <div className="trainer-v2-board" style={{ display: "block" }}>
+              <ChessboardReact
+                position={game.fen()}
+                orientation={opening.playerSide}
+                pieceSet={pieceSet}
+                boardTheme={boardTheme}
+                inputEnabled={!completed}
+                inputColor={opening.playerSide}
+                onMoveAttempt={handleMoveAttempt}
+                lastMove={lastMove}
+                hintSquare={hint}
+                feedback={feedback}
+                showLegalMarkers={true}
+                gameInstance={game}
+              />
             </div>
           </div>
 
