@@ -863,6 +863,17 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
               <span className="mode-sub" id="practiceStats">0/{opening.lines.length} lines perfected</span>
             </button>
 
+            <button className="mode-btn locked" id="modePuzzles" disabled type="button">
+              <div className="mode-btn-main">
+                <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)", opacity: 0.5 }}>
+                  <path d="M19.439 7.85c-.049.322.059.648.289.878l1.378 1.378a1 1 0 0 1 .289.878c0 .486-.166.893-.457 1.181l-1.99 1.99a1 1 0 0 1-.878.289 1 1 0 0 1-.878-.289l-1.378-1.378a1.05 1.05 0 0 0-.878-.289c-.322 0-.649.059-.878.289l-1.378 1.378a1 1 0 0 1-.878.289 1 1 0 0 1-.878-.289l-1.99-1.99a1 1 0 0 1-.289-.878c0-.486.166-.893.457-1.181l1.378-1.378a1.05 1.05 0 0 0 .289-.878c0-.322-.059-.649-.289-.878l-1.378-1.378a1 1 0 0 1-.289-.878c0-.486.166-.893.457-1.181l1.99-1.99a1 1 0 0 1 .878-.289c.322 0 .649.059.878.289l1.378 1.378a1.05 1.05 0 0 0 .878.289c.322 0 .649-.059.878-.289l1.378-1.378a1 1 0 0 1 .878-.289 1 1 0 0 1 .878.289l1.99 1.99a1 1 0 0 1 .289.878c0 .486-.166.893-.457 1.181l-1.378 1.378a1.05 1.05 0 0 0-.289.878z"/>
+                  <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+                </svg>
+                <span className="mode-title">Puzzles</span>
+              </div>
+              <span className="mode-sub">Solve puzzles, win ELO</span>
+            </button>
+
             <div className="mode-grid">
               <button className="mode-btn small locked" id="modeDrill" disabled type="button">
                 <div className="mode-btn-main">
@@ -885,17 +896,6 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                   <span className="mode-title">Time Trials</span>
                 </div>
                 <span className="mode-sub">Race the clock</span>
-              </button>
-
-              <button className="mode-btn small locked" id="modePuzzles" disabled type="button">
-                <div className="mode-btn-main">
-                  <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)", opacity: 0.5 }}>
-                    <path d="M19.439 7.85c-.049.322.059.648.289.878l1.378 1.378a1 1 0 0 1 .289.878c0 .486-.166.893-.457 1.181l-1.99 1.99a1 1 0 0 1-.878.289 1 1 0 0 1-.878-.289l-1.378-1.378a1.05 1.05 0 0 0-.878-.289c-.322 0-.649.059-.878.289l-1.378 1.378a1 1 0 0 1-.878.289 1 1 0 0 1-.878-.289l-1.99-1.99a1 1 0 0 1-.289-.878c0-.486.166-.893.457-1.181l1.378-1.378a1.05 1.05 0 0 0 .289-.878c0-.322-.059-.649-.289-.878l-1.378-1.378a1 1 0 0 1-.289-.878c0-.486.166-.893.457-1.181l1.99-1.99a1 1 0 0 1 .878-.289c.322 0 .649.059.878.289l1.378 1.378a1.05 1.05 0 0 0 .878.289c.322 0 .649-.059.878-.289l1.378-1.378a1 1 0 0 1 .878-.289 1 1 0 0 1 .878.289l1.99 1.99a1 1 0 0 1 .289.878c0 .486-.166.893-.457 1.181l-1.378 1.378a1.05 1.05 0 0 0-.289.878z"/>
-                    <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
-                  </svg>
-                  <span className="mode-title">Puzzles</span>
-                </div>
-                <span className="mode-sub">Solve puzzles, win ELO</span>
               </button>
             </div>
           </div>
