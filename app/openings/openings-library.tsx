@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import { clearLocalUserData, prepareLocalProgressForUser } from "../../lib/local-progress";
+import { loadCloudProgress, readCachedProgress } from "../../lib/cloud-progress";
 
 type Opening = {
   id: string;
@@ -29,11 +30,7 @@ const boardImageNames: Record<string, string> = {
 };
 
 function readProgress(): Progress {
-  try {
-    return JSON.parse(localStorage.getItem("chessengineered_progress") ?? "{}");
-  } catch {
-    return {};
-  }
+  return readCachedProgress() as Progress;
 }
 
 function readStreak() {
@@ -141,16 +138,28 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
       } = await client.auth.getUser();
 
       setSessionEmail(user?.email ?? null);
-      if (!user) return;
+      if (!user) {
+        setProgress(readProgress());
+        setStreak(readStreak());
+        return;
+      }
       prepareLocalProgressForUser(user.id);
+      setProgress(readProgress());
+      setStreak(readStreak());
+      try {
+        setUsage(JSON.parse(localStorage.getItem("chessengineered_usage") ?? "{}"));
+      } catch {
+        setUsage({});
+      }
 
-      const [{ data: subscription }, { data: profile }] = await Promise.all([
+      const [{ data: subscription }, { data: profile }, cloudProgress] = await Promise.all([
         client
           .from("subscriptions")
           .select("status, current_period_end")
           .eq("user_id", user.id)
           .maybeSingle(),
         client.from("profiles").select("free_opening_slug").eq("id", user.id).maybeSingle(),
+        loadCloudProgress(client, user.id).catch(() => null),
       ]);
 
       const paid =
@@ -161,6 +170,14 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
 
       setHasSubscription(!!paid);
       setFreeOpening(profile?.free_opening_slug ?? null);
+      if (cloudProgress) {
+        setProgress(cloudProgress as Progress);
+        setStreak(Math.max(0, Math.round(Number(cloudProgress.dailyStreak?.count) || 0)));
+        if (cloudProgress.openingUsage && typeof cloudProgress.openingUsage === "object") {
+          setUsage(cloudProgress.openingUsage);
+          localStorage.setItem("chessengineered_usage", JSON.stringify(cloudProgress.openingUsage));
+        }
+      }
     };
 
     void loadAccount();
@@ -304,8 +321,7 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
         </div>
       </div>
 
-      {/* NAV */}
-      <nav>
+      <nav className="nav">
         <div className="nav-shell">
           <Link href="/openings" className="nav-logo" aria-label="ChessEngineered home">
             <span className="nav-logo-mark" aria-hidden="true">
@@ -319,7 +335,7 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
           </Link>
 
           <div className="nav-right">
-            {!hasSubscription && <Link className="nav-primary-link" href="/plans"><span>Upgrade Now</span></Link>}
+
             <div id="userMenu">
               {sessionEmail ? (
                 <button className="nav-icon-btn" onClick={logout} title="Log out" type="button" style={{ display: "flex", gap: "8px", alignItems: "center" }}>

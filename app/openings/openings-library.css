@@ -536,7 +536,7 @@ input:focus, select:focus, textarea:focus {
 .unlock-spark.s6 { transform: rotate(300deg) translateY(-110px); animation-delay: 150ms; }
 
 /* ── Nav ── */
-nav {
+nav, .nav {
   position: fixed;
   top: 0; left: 0; right: 0;
   z-index: 100;
@@ -545,9 +545,10 @@ nav {
   align-items: center;
   justify-content: center;
   padding: 0 var(--space-md);
-  background: oklch(14% 0.008 250 / 0.85);
-  backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--color-rule);
+  background: rgba(5, 5, 7, 0.75) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 .nav-shell {
   width: 100%;
@@ -809,7 +810,7 @@ main {
   background: transparent;
   color: var(--color-ink);
   font-family: var(--font-body);
-  cursor: default;
+  cursor: pointer;
 }
 .daily-streak-card.daily-streak-earned {
   animation: dailyStreakCardEarned 1200ms var(--ease-out) both;

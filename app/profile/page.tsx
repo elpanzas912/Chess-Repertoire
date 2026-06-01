@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import { clearLocalUserData, prepareLocalProgressForUser } from "../../lib/local-progress";
+import { loadCloudProgress, readCachedProgress } from "../../lib/cloud-progress";
 import catalog from "../../data/openings-catalog.json";
 import { Chess } from "chess.js";
 import { ChessboardReact } from "../openings/[slug]/chessboard-react";
@@ -39,7 +40,12 @@ type AccuracyData = {
 };
 
 type Progress = Record<string, any> & {
-  dailyStreak?: { count?: number; lastActiveDate?: string; activityDates?: Record<string, number> };
+  dailyStreak?: {
+    count?: number;
+    lastActiveDate?: string;
+    activityDates?: Record<string, number>;
+    lineActivityDates?: Record<string, number>;
+  };
   trainingTime?: Record<string, number>;
   accuracy?: AccuracyData;
 };
@@ -65,6 +71,7 @@ export default function ProfilePage() {
   const [hintsEnabled, setHintsEnabled] = useState(true);
   const [streak, setStreak] = useState(0);
   const [streakOpen, setStreakOpen] = useState(false);
+  const [activityTooltip, setActivityTooltip] = useState<{ text: string; top: number; left: number } | null>(null);
 
   // Accuracy controls
   const [accuracyMode, setAccuracyMode] = useState<"all" | "learn" | "practice">("all");
@@ -78,7 +85,7 @@ export default function ProfilePage() {
     
     // Load local storage values
     try {
-      const prog = JSON.parse(localStorage.getItem("chessengineered_progress") ?? "{}");
+      const prog = readCachedProgress();
       setProgress(prog);
       setStreak(Math.max(0, Math.round(Number(prog.dailyStreak?.count) || 0)));
       setUsage(JSON.parse(localStorage.getItem("chessengineered_usage") ?? "{}"));
@@ -119,15 +126,23 @@ export default function ProfilePage() {
         );
       }
       prepareLocalProgressForUser(user.id);
+      const cached = readCachedProgress() as Progress;
+      setProgress(cached);
+      setStreak(Math.max(0, Math.round(Number(cached.dailyStreak?.count) || 0)));
+      try {
+        setUsage(JSON.parse(localStorage.getItem("chessengineered_usage") ?? "{}"));
+      } catch {
+        setUsage({});
+      }
 
       // Fetch subscription & cloud progress
-      const [{ data: subscription }, { data: profile }] = await Promise.all([
+      const [{ data: subscription }, cloudProgress] = await Promise.all([
         client
           .from("subscriptions")
           .select("status, current_period_end")
           .eq("user_id", user.id)
           .maybeSingle(),
-        client.from("profiles").select("user_progress").eq("id", user.id).maybeSingle(),
+        loadCloudProgress(client, user.id).catch(() => null),
       ]);
 
       const paid =
@@ -141,67 +156,19 @@ export default function ProfilePage() {
         setSubscriptionEnd(new Date(subscription.current_period_end).toLocaleDateString());
       }
 
-      if (profile?.user_progress) {
-        try {
-          const local = JSON.parse(localStorage.getItem("chessengineered_progress") ?? "{}");
-          const merged = mergeProgress(local, profile.user_progress);
-          localStorage.setItem("chessengineered_progress", JSON.stringify(merged));
-          setProgress(merged);
-          setStreak(Math.max(0, Math.round(Number(merged.dailyStreak?.count) || 0)));
-        } catch {
-          // ignore
+      if (cloudProgress) {
+        const nextProgress = cloudProgress as Progress;
+        setProgress(nextProgress);
+        setStreak(Math.max(0, Math.round(Number(nextProgress.dailyStreak?.count) || 0)));
+        if (nextProgress.openingUsage && typeof nextProgress.openingUsage === "object") {
+          setUsage(nextProgress.openingUsage);
+          localStorage.setItem("chessengineered_usage", JSON.stringify(nextProgress.openingUsage));
         }
       }
     };
 
     void loadAccount();
   }, [router]);
-
-  // Merge logic helper
-  function mergeProgress(local: any, cloud: any) {
-    const merged = { ...(cloud || {}) };
-    merged.trainingTime = mergeTrainingTime(local?.trainingTime, cloud?.trainingTime);
-    merged.accuracy = mergeAccuracy(local?.accuracy, cloud?.accuracy);
-    for (const slug in local || {}) {
-      if (["puzzleELO", "puzzleStreak", "dailyStreak", "trainingTime", "accuracy"].includes(slug)) {
-        if (merged[slug] === undefined) merged[slug] = local[slug];
-        continue;
-      }
-      if (!merged[slug]) {
-        merged[slug] = local[slug];
-        continue;
-      }
-      const localLearned = local[slug].learnedLines || [];
-      const cloudLearned = merged[slug].learnedLines || [];
-      merged[slug].learnedLines = [...new Set([...cloudLearned, ...localLearned])];
-      const localLines = local[slug].lines || {};
-      const cloudLines = merged[slug].lines || {};
-      for (const pgn in localLines) {
-        cloudLines[pgn] = {
-          ...cloudLines[pgn],
-          ...localLines[pgn],
-          completions: Math.max(Number(localLines[pgn]?.completions) || 0, Number(cloudLines[pgn]?.completions) || 0),
-          practicePerfectAttempts: Math.max(Number(localLines[pgn]?.practicePerfectAttempts) || 0, Number(cloudLines[pgn]?.practicePerfectAttempts) || 0),
-        };
-      }
-      merged[slug].lines = cloudLines;
-    }
-    return merged;
-  }
-
-  function mergeTrainingTime(local: any, cloud: any) {
-    const modes = ["learn", "practice", "drill", "time", "puzzle"];
-    const localTime = local && typeof local === "object" ? local : {};
-    const cloudTime = cloud && typeof cloud === "object" ? cloud : {};
-    return modes.reduce((acc: any, mode) => {
-      acc[mode] = Math.max(Number(localTime[mode]) || 0, Number(cloudTime[mode]) || 0);
-      return acc;
-    }, {});
-  }
-
-  function mergeAccuracy(local: any, cloud: any) {
-    return cloud || local || {};
-  }
 
   // Settings Save Helpers
   function saveBoardAppearance(key: "boardTheme" | "pieceSet", value: string) {
@@ -237,7 +204,7 @@ export default function ProfilePage() {
     const openingsPracticed = Object.keys(usage).length;
     let linesLearned = 0;
     for (const slug in progress) {
-      if (!["puzzleELO", "puzzleStreak", "dailyStreak", "trainingTime", "accuracy"].includes(slug)) {
+      if (!["puzzleELO", "puzzleStreak", "dailyStreak", "trainingTime", "accuracy", "openingUsage"].includes(slug)) {
         linesLearned += progress[slug]?.learnedLines?.length || 0;
       }
     }
@@ -278,26 +245,8 @@ export default function ProfilePage() {
 
   // --- HEATMAP ---
   const getPracticeActivityDates = (prog: Progress) => {
-    const openingsObj = prog.accuracy?.openings && typeof prog.accuracy.openings === "object" ? prog.accuracy.openings : {};
-    const dates: Record<string, number> = {};
-
-    for (const opening of Object.values(openingsObj)) {
-      const lines = opening?.lines && typeof opening.lines === "object" ? opening.lines : {};
-      for (const line of Object.values(lines)) {
-        const daily = line?.daily && typeof line.daily === "object" ? line.daily : {};
-        for (const [date, bucket] of Object.entries(daily)) {
-          const result = getBucketResult(bucket, "all");
-          if (result.correct + result.incorrect > 0) {
-            dates[date] = (dates[date] || 0) + 1;
-          }
-        }
-      }
-    }
-
-    if (Object.keys(dates).length > 0) return dates;
-
-    const fallback = prog.dailyStreak?.activityDates || {};
-    return Object.entries(fallback).reduce((acc: Record<string, number>, [date, count]) => {
+    const activityDates = prog.dailyStreak?.lineActivityDates || {};
+    return Object.entries(activityDates).reduce((acc: Record<string, number>, [date, count]) => {
       acc[date] = Math.max(0, Math.round(Number(count) || 0));
       return acc;
     }, {});
@@ -518,7 +467,6 @@ export default function ProfilePage() {
           </Link>
 
           <div className="nav-right">
-            {!hasSubscription && <Link className="nav-primary-link" href="/plans"><span>Upgrade Now</span></Link>}
             <div id="userMenu">
               {sessionEmail ? (
                 <button className="nav-icon-btn" onClick={handleLogout} title="Log out" type="button" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -702,11 +650,29 @@ export default function ProfilePage() {
                         style={{ gridArea: `${cell.d + 1} / ${cell.w + 1}` }}
                         data-tooltip={cell.tooltip}
                         aria-label={cell.tooltip}
+                        onMouseEnter={(event) => {
+                          const rect = event.currentTarget.getBoundingClientRect();
+                          setActivityTooltip({
+                            text: cell.tooltip,
+                            top: rect.top - 8,
+                            left: Math.min(Math.max(rect.left + rect.width / 2, 110), window.innerWidth - 110),
+                          });
+                        }}
+                        onMouseLeave={() => setActivityTooltip(null)}
                       />
                     ))}
                   </div>
                 </div>
               </div>
+              {activityTooltip && (
+                <div
+                  className="activity-tooltip is-visible"
+                  role="tooltip"
+                  style={{ top: activityTooltip.top, left: activityTooltip.left }}
+                >
+                  {activityTooltip.text}
+                </div>
+              )}
             </div>
           </div>
 
