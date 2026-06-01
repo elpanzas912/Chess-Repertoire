@@ -769,7 +769,6 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
         <div className={`completion-overlay ${completed ? "open" : ""}`} id="completionOverlay">
           <h2>Line Complete!</h2>
           <div className="completion-sub" id="completionSub">Great job! You learned a new line.</div>
-          <button className="btn-next-line" onClick={() => startLine((lineIndex + 1) % opening.lines.length)}>Next Line</button>
         </div>
       </div>
 
