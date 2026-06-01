@@ -2573,6 +2573,7 @@ body {
   padding: 16px !important;
   gap: var(--space-md) !important;
   transition: all 0.3s var(--ease-out) !important;
+  min-height: 104px !important;
 }
 
 .instruction-dialog:hover {
@@ -2593,16 +2594,24 @@ body {
 }
 
 .speech-bubble {
-  background: transparent !important;
-  border: none !important;
-  padding: 0 !important;
-  border-radius: 0 !important;
+  width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 10px 14px !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(24, 24, 27, 0.12) !important;
+  border-radius: var(--radius-md) !important;
+  color: #18181b !important;
 }
 
 .speech-bubble .instruction-text {
-  color: #fafafa !important;
+  color: #18181b !important;
   font-size: var(--text-sm) !important;
-  line-height: 1.6 !important;
+  line-height: 1.5 !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  overflow-wrap: anywhere !important;
 }
 
 /* ── Elite Mode Selection Cards ── */
