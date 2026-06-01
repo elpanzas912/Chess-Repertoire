@@ -389,7 +389,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
         updateEvaluation(nextChess);
         setMoveIndex(index);
         updateInstruction(chess);
-        const unlockDelay = index > startIndex ? 50 : 250;
+        const unlockDelay = index > startIndex ? 0 : 250;
         setTimeout(() => {
           setBoardLocked(false);
         }, unlockDelay);
@@ -406,7 +406,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       setMoveIndex(index);
       playSound(pieceSound(move, false), soundsEnabled);
       updateInstruction(chess);
-      timer.current = setTimeout(playNext, 340);
+      timer.current = setTimeout(playNext, 250);
     };
 
     setBoardLocked(true);
