@@ -3130,7 +3130,7 @@ body {
     align-items: stretch !important;
     background: transparent !important;
     border: none !important;
-    margin-top: auto !important;
+    margin-top: 8px !important;
     margin-bottom: 0 !important;
     gap: 0 !important;
     box-shadow: none !important;
@@ -3584,7 +3584,7 @@ body {
     height: auto !important;
     min-height: 0 !important;
     max-height: 96px !important;
-    margin-top: auto !important;
+    margin-top: 6px !important;
   }
 
   .speech-bubble {
