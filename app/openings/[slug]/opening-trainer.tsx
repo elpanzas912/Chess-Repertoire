@@ -70,24 +70,41 @@ function saveLearnedLine(slug: string, line: string) {
   localStorage.setItem("chessengineered_progress", JSON.stringify(progress));
 }
 
-function getLearnedCount(slug: string) {
+function getLearnedLines(slug: string) {
   try {
     const progress = JSON.parse(localStorage.getItem("chessengineered_progress") ?? "{}");
-    return new Set(progress[slug]?.learnedLines ?? []).size;
+    return new Set<string>(progress[slug]?.learnedLines ?? []);
   } catch {
-    return 0;
+    return new Set<string>();
   }
 }
 
+function getKnownLearnedLines(slug: string, lines: string[]) {
+  const knownLines = new Set(lines);
+  return new Set([...getLearnedLines(slug)].filter((line) => knownLines.has(line)));
+}
+
 const resumeLinesKey = "chessengineered_resume_lines";
+
+function getNextLearnLineIndex(lines: string[], learnedLines: Set<string>, startIndex = 0) {
+  if (!lines.length) return 0;
+  const normalizedStart = ((startIndex % lines.length) + lines.length) % lines.length;
+  if (learnedLines.size < lines.length) {
+    for (let offset = 0; offset < lines.length; offset += 1) {
+      const index = (normalizedStart + offset) % lines.length;
+      if (!learnedLines.has(lines[index])) return index;
+    }
+  }
+  return normalizedStart;
+}
 
 function getResumeLineIndex(slug: string, lines: string[]) {
   try {
     const resumeLines = JSON.parse(localStorage.getItem(resumeLinesKey) ?? "{}");
     const index = lines.indexOf(resumeLines[slug]);
-    return index >= 0 ? index : 0;
+    return getNextLearnLineIndex(lines, getKnownLearnedLines(slug, lines), index >= 0 ? index : 0);
   } catch {
-    return 0;
+    return getNextLearnLineIndex(lines, getKnownLearnedLines(slug, lines));
   }
 }
 
@@ -194,7 +211,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const [trainingArrows, setTrainingArrows] = useState(true);
   const [pieceSet, setPieceSet] = useState<PieceSet>("staunty");
   const [boardTheme, setBoardTheme] = useState<BoardTheme>("green");
-  const [learnedCount, setLearnedCount] = useState(() => getLearnedCount(slug));
+  const [learnedLines, setLearnedLines] = useState(() => getKnownLearnedLines(slug, opening.lines));
   const [boardLocked, setBoardLocked] = useState(true);
   
   // Estados y referencias para la barra de evaluación asíncrona Stockfish
@@ -215,6 +232,8 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const activityStartedAtRef = useRef(Date.now());
   const currentLine = opening.lines[lineIndex];
   const moves = useMemo(() => parseLine(currentLine), [currentLine]);
+  const learnedCount = learnedLines.size;
+  const nextLearnLineIndex = getNextLearnLineIndex(opening.lines, learnedLines, lineIndex + 1);
 
   useEffect(() => {
     setShowEval(localStorage.getItem("chessengineered_show_eval") !== "false");
@@ -349,7 +368,10 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     completedLineRef.current = true;
 
     saveLearnedLine(slug, currentLine);
-    setLearnedCount(getLearnedCount(slug));
+    const nextLearnedLines = getKnownLearnedLines(slug, opening.lines);
+    const nextIndex = getNextLearnLineIndex(opening.lines, nextLearnedLines, lineIndex + 1);
+    saveResumeLine(slug, opening.lines[nextIndex]);
+    setLearnedLines(nextLearnedLines);
 
     if (!supabase) return;
     const now = Date.now();
@@ -368,9 +390,9 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       incorrectMoves: incorrectMovesRef.current,
       durationMs: Math.max(0, Date.now() - sessionStartedAtRef.current),
     })
-      .then(() => setLearnedCount(getLearnedCount(slug)))
+      .then(() => setLearnedLines(getKnownLearnedLines(slug, opening.lines)))
       .catch((error) => console.warn("Unable to sync training progress:", error.message));
-  }, [currentLine, slug]);
+  }, [currentLine, lineIndex, opening.lines, slug]);
 
   const playCompletionConfetti = useCallback(() => {
     if (localStorage.getItem("chessengineered_confetti") === "false") return;
@@ -718,7 +740,8 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     const progress = JSON.parse(localStorage.getItem("chessengineered_progress") ?? "{}");
     progress[slug] = {};
     localStorage.setItem("chessengineered_progress", JSON.stringify(progress));
-    setLearnedCount(0);
+    saveResumeLine(slug, opening.lines[0]);
+    setLearnedLines(new Set());
     startLine(0);
     setSettingsOpen(false);
     if (!supabase) return;
@@ -891,21 +914,29 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
             {/* Line Dropdown */}
             <div className={`line-dropdown ${linePickerOpen ? "open" : ""}`} id="lineDropdown">
               <div className="dropdown-list" id="dropdownList">
-                {opening.lines.map((line, index) => (
-                  <div
-                    key={line}
-                    className={`dropdown-item ${index === lineIndex ? "active" : ""}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      startLine(index);
-                      setLinePickerOpen(false);
-                    }}
-                  >
-                    <span className="line-num">#{index + 1}</span>
-                    <span className="line-label">{opening.lineNames[line] ?? `Línea ${index + 1}`}</span>
-                    {index < learnedCount && <span className="line-check">✓</span>}
-                  </div>
-                ))}
+                {opening.lines.map((line, index) => {
+                  const learned = learnedLines.has(line);
+                  const locked = !learned && index !== getNextLearnLineIndex(opening.lines, learnedLines);
+                  return (
+                    <div
+                      key={line}
+                      className={`dropdown-item ${index === lineIndex ? "active" : ""} ${locked ? "locked" : ""}`}
+                      aria-disabled={locked}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (locked) return;
+                        startLine(index);
+                        setLinePickerOpen(false);
+                      }}
+                    >
+                      <span className="line-num">#{index + 1}</span>
+                      <span className="line-icon">{locked ? "🔒" : learned ? "✓" : "🎯"}</span>
+                      <span className="line-label">{opening.lineNames[line] ?? `Línea ${index + 1}`}</span>
+                      {locked && <span className="line-locked-label">Locked</span>}
+                      {index === lineIndex && <span className="line-check">✓</span>}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -959,7 +990,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                 </button>
                 <button
                   className="btn-next-line"
-                  onClick={() => startLine((lineIndex + 1) % opening.lines.length)}
+                  onClick={() => startLine(nextLearnLineIndex)}
                   style={{
                     flex: 1,
                     height: "56px",
@@ -1173,7 +1204,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                 <path d="M3 4.5h4v4"/>
               </svg>
             </button>
-            <button className="toolbar-btn complete-next-line" type="button" id="btnCompleteNext" onClick={() => startLine((lineIndex + 1) % opening.lines.length)}>
+            <button className="toolbar-btn complete-next-line" type="button" id="btnCompleteNext" onClick={() => startLine(nextLearnLineIndex)}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
                 <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
