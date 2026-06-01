@@ -2573,7 +2573,10 @@ body {
   padding: 16px !important;
   gap: var(--space-md) !important;
   transition: all 0.3s var(--ease-out) !important;
-  min-height: 104px !important;
+  height: 120px !important;
+  min-height: 120px !important;
+  max-height: 120px !important;
+  overflow: hidden !important;
 }
 
 .instruction-dialog:hover {
@@ -2595,9 +2598,9 @@ body {
 
 .speech-bubble {
   width: 100% !important;
-  height: auto !important;
-  max-height: none !important;
-  overflow: visible !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow-y: auto !important;
   padding: 10px 14px !important;
   background: #ffffff !important;
   border: 1px solid rgba(24, 24, 27, 0.12) !important;
