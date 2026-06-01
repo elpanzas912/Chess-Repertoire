@@ -1,22 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import confetti from "canvas-confetti";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Chess, type Square } from "chess.js";
 import { supabase } from "../../../lib/supabase";
 import { createEventId, recordLearnCompletion, recordTrainingActivity, resetOpeningProgress } from "../../../lib/cloud-progress";
+import { loadOpening, OpeningAccessError, readCachedOpening, type CachedOpening } from "../../../lib/opening-cache";
 import { ChessboardReact } from "./chessboard-react";
 
-type Opening = {
-  id: string;
-  displayName: string;
-  playerSide: "w" | "b";
-  lines: string[];
-  lineNames: Record<string, string>;
-  lineCount: number;
-  descriptions: Record<string, string>;
-};
+type Opening = CachedOpening;
 
 type CourseMove = {
   color: string;
@@ -85,6 +79,32 @@ function getLearnedCount(slug: string) {
   }
 }
 
+const resumeLinesKey = "chessengineered_resume_lines";
+
+function getResumeLineIndex(slug: string, lines: string[]) {
+  try {
+    const resumeLines = JSON.parse(localStorage.getItem(resumeLinesKey) ?? "{}");
+    const index = lines.indexOf(resumeLines[slug]);
+    return index >= 0 ? index : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveResumeLine(slug: string, line: string) {
+  try {
+    const resumeLines = JSON.parse(localStorage.getItem(resumeLinesKey) ?? "{}");
+    resumeLines[slug] = line;
+    localStorage.setItem(resumeLinesKey, JSON.stringify(resumeLines));
+  } catch {
+    localStorage.setItem(resumeLinesKey, JSON.stringify({ [slug]: line }));
+  }
+}
+
+function lichessAnalysisUrl(fen: string) {
+  return `https://lichess.org/analysis/standard/${fen.replaceAll(" ", "_")}`;
+}
+
 function playSound(name: string, enabled = true) {
   if (!enabled) return;
   const audio = new Audio(`/sounds/${name}.mp3`);
@@ -101,49 +121,31 @@ function pieceSound(move: { captured?: string; san: string }, playerMove: boolea
 
 export function OpeningTrainer({ slug }: { slug: string }) {
   const router = useRouter();
-  const [opening, setOpening] = useState<Opening | null>(null);
+  const [opening, setOpening] = useState<Opening | null>(() => readCachedOpening(slug));
   const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
 
-    async function loadOpening() {
+    async function loadOpeningData() {
       if (!supabase) {
         setError("Supabase no está configurado.");
         return;
       }
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-      if (!token) {
+      const loadedOpening = await loadOpening(supabase, slug);
+      if (active) setOpening(loadedOpening);
+    }
+
+    void loadOpeningData().catch((loadError) => {
+      if (loadError instanceof OpeningAccessError && loadError.status === 401) {
         router.replace(`/login?next=/opening/${slug}`);
         return;
       }
-
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-      const response = await fetch(`${url}/functions/v1/get-opening?slug=${encodeURIComponent(slug)}`, {
-        headers: { apikey: key ?? "", Authorization: `Bearer ${token}` },
-      });
-
-      if (response.status === 401) {
-        router.replace(`/login?next=/opening/${slug}`);
-        return;
-      }
-      if (response.status === 403) {
+      if (loadError instanceof OpeningAccessError && loadError.status === 403) {
         router.replace("/plans");
         return;
       }
-      if (!response.ok) {
-        setError("No se pudo cargar la apertura. Intenta nuevamente.");
-        return;
-      }
-
-      const payload = await response.json() as { opening?: Opening };
-      if (active && payload.opening) setOpening(payload.opening);
-    }
-
-    void loadOpening().catch(() => {
       if (active) setError("No se pudo cargar la apertura. Intenta nuevamente.");
     });
 
@@ -153,7 +155,7 @@ export function OpeningTrainer({ slug }: { slug: string }) {
   }, [router, slug]);
 
   if (error) return <TrainerMessage message={error} />;
-  if (!opening) return <TrainerMessage message="Cargando apertura..." />;
+  if (!opening) return null;
   return <TrainingBoard opening={opening} slug={slug} />;
 }
 
@@ -172,7 +174,7 @@ function TrainerMessage({ message }: { message: string }) {
 }
 
 function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
-  const [lineIndex, setLineIndex] = useState(0);
+  const [lineIndex, setLineIndex] = useState(() => getResumeLineIndex(slug, opening.lines));
   const [restartVersion, setRestartVersion] = useState(0);
   const [game, setGame] = useState(() => new Chess());
   const [moveIndex, setMoveIndex] = useState(0);
@@ -370,6 +372,42 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       .catch((error) => console.warn("Unable to sync training progress:", error.message));
   }, [currentLine, slug]);
 
+  const playCompletionConfetti = useCallback(() => {
+    if (localStorage.getItem("chessengineered_confetti") === "false") return;
+
+    const boardEl = document.getElementById("board");
+    let originX = 0.5;
+    let originY = 1.1;
+    if (boardEl) {
+      const rect = boardEl.getBoundingClientRect();
+      originX = (rect.left + rect.width / 2) / window.innerWidth;
+      originY = (rect.bottom + 20) / window.innerHeight;
+    }
+
+    const count = 300;
+    const defaults = {
+      origin: { x: originX, y: originY },
+      scalar: 1.8,
+      gravity: 0.8,
+      ticks: 250,
+      colors: ["#a78bfa", "#8b5cf6", "#22c55e", "#fbbf24", "#f472b6", "#60a5fa"],
+      zIndex: 999999
+    };
+
+    const fire = (particleRatio: number, opts: confetti.Options) => {
+      confetti({
+        ...defaults,
+        ...opts,
+        particleCount: Math.floor(count * particleRatio),
+      });
+    };
+
+    fire(0.3, { spread: 40, startVelocity: 65, angle: 90 });
+    fire(0.25, { spread: 80, startVelocity: 55, angle: 90 });
+    fire(0.3, { spread: 120, startVelocity: 45, angle: 90, decay: 0.92 });
+    fire(0.15, { spread: 160, startVelocity: 30, angle: 90, decay: 0.94, scalar: 2.2 });
+  }, []);
+
   const playOpponentMoves = useCallback((source: Chess, startIndex: number, initialDelay = 0) => {
     const chess = new Chess(source.fen());
     let index = startIndex;
@@ -381,6 +419,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
         completeCurrentLine();
         playSound("game-end", soundsEnabled);
         setBoardLocked(true);
+        playCompletionConfetti();
         return;
       }
       if (next.color === opening.playerSide) {
@@ -411,15 +450,17 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
     setBoardLocked(true);
     timer.current = setTimeout(playNext, initialDelay);
-  }, [completeCurrentLine, moves, opening.playerSide, soundsEnabled, updateInstruction, updateEvaluation]);
+  }, [completeCurrentLine, moves, opening.playerSide, soundsEnabled, updateInstruction, updateEvaluation, playCompletionConfetti]);
 
   const startLine = useCallback((index: number) => {
+    const nextIndex = index >= 0 && index < opening.lines.length ? index : 0;
     if (timer.current) clearTimeout(timer.current);
     sessionStartedAtRef.current = Date.now();
     correctMovesRef.current = 0;
     incorrectMovesRef.current = 0;
     completedLineRef.current = false;
-    setLineIndex(index);
+    saveResumeLine(slug, opening.lines[nextIndex]);
+    setLineIndex(nextIndex);
     setGame(new Chess());
     setMoveIndex(0);
     setSelected(null);
@@ -430,7 +471,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     setCompleted(false);
     setBoardLocked(true);
     setRestartVersion((version) => version + 1);
-  }, []);
+  }, [opening.lines, slug]);
 
   useEffect(() => {
     const chess = new Chess();
@@ -1062,7 +1103,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
               </label>
               <div className="settings-menu-separator"></div>
               <div className="settings-menu-title">Export &amp; Share</div>
-              <button className="settings-menu-item" type="button" onClick={() => window.open(`https://lichess.org/analysis/${encodeURIComponent(game.fen())}`, "_blank", "noopener,noreferrer")}>Open in Lichess</button>
+              <button className="settings-menu-item" type="button" onClick={() => window.open(lichessAnalysisUrl(game.fen()), "_blank", "noopener,noreferrer")}>Open in Lichess</button>
               <button className="settings-menu-item" type="button" onClick={() => void copyText(currentLine)}>Copy PGN</button>
               <button className="settings-menu-item" type="button" onClick={() => void copyText(game.fen())}>Copy FEN</button>
               <div className="settings-menu-separator"></div>

@@ -8,6 +8,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "build:openings": "node scripts/compile-opening-pgn.mjs",
+    "import:combined-openings": "node scripts/import-combined-opening-data.mjs",
     "validate:openings": "node scripts/validate-opening-data.mjs"
   },
   "devDependencies": {
@@ -21,6 +22,8 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
+    "@types/canvas-confetti": "^1.9.0",
+    "canvas-confetti": "^1.9.4",
     "chess.js": "1.4.0",
     "next": "^16.2.6",
     "react": "^19.2.6",
