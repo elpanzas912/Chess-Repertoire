@@ -595,6 +595,61 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     }, 360);
   }
 
+  const handleHintClick = useCallback(() => {
+    if (completed || boardLocked) return;
+    const expected = moves[moveIndex];
+    if (!expected || expected.color !== opening.playerSide) return;
+
+    if (hint) {
+      // Si el hint ya está activo, hacemos "Solve" (Resolver la jugada automáticamente)
+      setHint(null);
+      setSelected(null);
+      setLegalTargets([]);
+      setBoardLocked(true);
+
+      const from = expected.from as Square;
+      const to = expected.to as Square;
+
+      const chess = new Chess(game.fen());
+      const move = chess.move({ from, to, promotion: "q" });
+      if (!move) {
+        setBoardLocked(false);
+        return;
+      }
+      const nextIndex = moveIndex + 1;
+      correctMovesRef.current += 1;
+      setGame(chess);
+      updateEvaluation(chess);
+      setMoveIndex(nextIndex);
+      setLastMove({ from, to });
+      setFeedback({ square: to, type: "correct" });
+      vibrate(10);
+      playSound(pieceSound(move, true), soundsEnabled);
+      updateInstruction(chess);
+      timer.current = setTimeout(() => {
+        setFeedback(null);
+        playOpponentMoves(chess, nextIndex, 0); // 0 delay inicial porque ya esperamos los 350ms del checkmark
+      }, 350);
+    } else {
+      // Si no, activamos el hint (Pista) que resalta la casilla origen
+      setHint(expected.from as Square);
+    }
+  }, [
+    completed,
+    boardLocked,
+    moves,
+    moveIndex,
+    opening.playerSide,
+    hint,
+    game,
+    soundsEnabled,
+    vibrate,
+    playOpponentMoves,
+    updateInstruction,
+    updateEvaluation,
+  ]);
+
+
   function startDrag(event: DragEvent, square: Square) {
     const piece = game.get(square);
     if (!piece || piece.color !== opening.playerSide) {
@@ -1003,13 +1058,30 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
               <button className="settings-menu-item" type="button" onClick={() => void resetProgress()}>Reset Progress</button>
             </div>
             <span className="version-badge">v1.4.0</span>
-            <button className="toolbar-btn" id="btnHint" type="button" onClick={() => setHint(nextExpected?.from ?? null)}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/>
-                <path d="M9 18h6"/>
-                <path d="M10 22h4"/>
-              </svg>
-              <span>Hint</span>
+            <button 
+              className={`toolbar-btn ${hint ? "solve-active" : ""}`} 
+              id="btnHint" 
+              type="button" 
+              onClick={handleHintClick}
+            >
+              {hint ? (
+                <>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-1.5"/>
+                    <path d="m22 10-7.5 7.5L11 14"/>
+                  </svg>
+                  <span>Solve</span>
+                </>
+              ) : (
+                <>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/>
+                    <path d="M9 18h6"/>
+                    <path d="M10 22h4"/>
+                  </svg>
+                  <span>Hint</span>
+                </>
+              )}
             </button>
           </div>
           <div className="toolbar-group">

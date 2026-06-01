@@ -2918,3 +2918,19 @@ body {
     z-index: 20 !important;
   }
 }
+
+/* Premium Solve State for Toolbar Button */
+.toolbar-btn.solve-active {
+  background: var(--color-warning) !important;
+  color: var(--color-accent-ink) !important;
+  border-color: var(--color-warning) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 0 14px oklch(70% 0.15 80 / 35%) !important;
+}
+
+.toolbar-btn.solve-active:hover {
+  background: oklch(74% 0.16 80) !important;
+  border-color: oklch(74% 0.16 80) !important;
+  box-shadow: 0 0 18px oklch(74% 0.16 80 / 45%) !important;
+}
+
