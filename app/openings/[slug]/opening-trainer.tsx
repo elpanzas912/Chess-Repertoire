@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Chess, type Square } from "chess.js";
 import { supabase } from "../../../lib/supabase";
-import { createEventId, recordLearnCompletion, recordTrainingActivity, resetOpeningProgress } from "../../../lib/cloud-progress";
+import { createEventId, recordTrainingCompletion, recordTrainingActivity, resetOpeningProgress } from "../../../lib/cloud-progress";
 import { loadOpening, OpeningAccessError, readCachedOpening, type CachedOpening } from "../../../lib/opening-cache";
 import { ChessboardReact } from "./chessboard-react";
 
@@ -20,6 +20,7 @@ type CourseMove = {
 };
 
 type Feedback = { square: Square; type: "correct" | "wrong" } | null;
+type TrainingMode = "learn" | "practice";
 type PieceSet = "staunty" | "maestro" | "standard";
 type BoardTheme = "green" | "white-violet" | "white-blue" | "blue" | "brown" | "classic" | "black-and-white";
 
@@ -82,6 +83,39 @@ function getLearnedLines(slug: string) {
 function getKnownLearnedLines(slug: string, lines: string[]) {
   const knownLines = new Set(lines);
   return new Set([...getLearnedLines(slug)].filter((line) => knownLines.has(line)));
+}
+
+function savePracticeCompletion(slug: string, line: string, perfect: boolean) {
+  const raw = localStorage.getItem("chessengineered_progress");
+  const progress = raw ? JSON.parse(raw) : {};
+  const opening = progress[slug] ?? {};
+  const lines = opening.lines ?? {};
+  const lineProgress = lines[line] ?? {};
+  lines[line] = {
+    ...lineProgress,
+    practiceCompletions: (Number(lineProgress.practiceCompletions) || 0) + 1,
+    practicePerfectAttempts: (Number(lineProgress.practicePerfectAttempts) || 0) + (perfect ? 1 : 0),
+  };
+  progress[slug] = { ...opening, lines };
+  localStorage.setItem("chessengineered_progress", JSON.stringify(progress));
+}
+
+function getPracticePerfectedCount(slug: string, learnedLines: Set<string>) {
+  try {
+    const progress = JSON.parse(localStorage.getItem("chessengineered_progress") ?? "{}");
+    const lines = progress[slug]?.lines ?? {};
+    return [...learnedLines].filter((line) => Number(lines[line]?.practicePerfectAttempts) > 0).length;
+  } catch {
+    return 0;
+  }
+}
+
+function getRandomPracticeLineIndex(lines: string[], learnedLines: Set<string>, currentIndex = -1) {
+  const candidates = lines
+    .map((line, index) => ({ line, index }))
+    .filter(({ line, index }) => learnedLines.has(line) && (learnedLines.size <= 1 || index !== currentIndex));
+  if (!candidates.length) return Math.max(0, currentIndex);
+  return candidates[Math.floor(Math.random() * candidates.length)].index;
 }
 
 const resumeLinesKey = "chessengineered_resume_lines";
@@ -212,6 +246,10 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const [pieceSet, setPieceSet] = useState<PieceSet>("staunty");
   const [boardTheme, setBoardTheme] = useState<BoardTheme>("green");
   const [learnedLines, setLearnedLines] = useState(() => getKnownLearnedLines(slug, opening.lines));
+  const [mode, setMode] = useState<TrainingMode>("learn");
+  const [practicePerfectedCount, setPracticePerfectedCount] = useState(() =>
+    getPracticePerfectedCount(slug, getKnownLearnedLines(slug, opening.lines)),
+  );
   const [boardLocked, setBoardLocked] = useState(true);
   
   // Estados y referencias para la barra de evaluación asíncrona Stockfish
@@ -230,10 +268,12 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const incorrectMovesRef = useRef(0);
   const completedLineRef = useRef(false);
   const activityStartedAtRef = useRef(Date.now());
+  const activityModeRef = useRef<TrainingMode>("learn");
   const currentLine = opening.lines[lineIndex];
   const moves = useMemo(() => parseLine(currentLine), [currentLine]);
   const learnedCount = learnedLines.size;
   const nextLearnLineIndex = getNextLearnLineIndex(opening.lines, learnedLines, lineIndex + 1);
+  const nextPracticeLineIndex = getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex);
 
   useEffect(() => {
     setShowEval(localStorage.getItem("chessengineered_show_eval") !== "false");
@@ -255,7 +295,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       const durationMs = now - activityStartedAtRef.current;
       activityStartedAtRef.current = now;
       if (durationMs < 1000) return;
-      void recordTrainingActivity(client, slug, durationMs).catch((error) =>
+      void recordTrainingActivity(client, slug, durationMs, activityModeRef.current).catch((error) =>
         console.warn("Unable to sync training time:", error.message),
       );
     };
@@ -281,6 +321,10 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       window.removeEventListener("pagehide", handlePageHide);
     };
   }, [slug]);
+
+  useEffect(() => {
+    activityModeRef.current = mode;
+  }, [mode]);
 
   function persistBoolean(key: string, value: boolean, setter: (value: boolean) => void) {
     localStorage.setItem(key, String(value));
@@ -361,38 +405,52 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   }, []);
 
   const updateInstruction = useCallback((chess: Chess) => {
+    if (mode === "practice") {
+      setInstruction(chess.turn() === opening.playerSide ? "¿Cuál es la mejor jugada?" : "Preparando la respuesta del rival...");
+      return;
+    }
     setInstruction(opening.descriptions[chess.fen()] ?? "Encuentra el mejor movimiento para continuar la variante.");
-  }, [opening.descriptions]);
+  }, [mode, opening.descriptions, opening.playerSide]);
   const completeCurrentLine = useCallback(() => {
     if (completedLineRef.current) return;
     completedLineRef.current = true;
 
-    saveLearnedLine(slug, currentLine);
-    const nextLearnedLines = getKnownLearnedLines(slug, opening.lines);
-    const nextIndex = getNextLearnLineIndex(opening.lines, nextLearnedLines, lineIndex + 1);
-    saveResumeLine(slug, opening.lines[nextIndex]);
-    setLearnedLines(nextLearnedLines);
+    if (mode === "learn") {
+      saveLearnedLine(slug, currentLine);
+      const nextLearnedLines = getKnownLearnedLines(slug, opening.lines);
+      const nextIndex = getNextLearnLineIndex(opening.lines, nextLearnedLines, lineIndex + 1);
+      saveResumeLine(slug, opening.lines[nextIndex]);
+      setLearnedLines(nextLearnedLines);
+    } else {
+      savePracticeCompletion(slug, currentLine, incorrectMovesRef.current === 0);
+      setPracticePerfectedCount(getPracticePerfectedCount(slug, getKnownLearnedLines(slug, opening.lines)));
+    }
 
     if (!supabase) return;
     const now = Date.now();
     const activeDurationMs = now - activityStartedAtRef.current;
     activityStartedAtRef.current = now;
     if (activeDurationMs >= 1000) {
-      void recordTrainingActivity(supabase, slug, activeDurationMs).catch((error) =>
+      void recordTrainingActivity(supabase, slug, activeDurationMs, mode).catch((error) =>
         console.warn("Unable to sync training time:", error.message),
       );
     }
-    void recordLearnCompletion(supabase, {
+    void recordTrainingCompletion(supabase, {
       eventId: createEventId(),
       slug,
       line: currentLine,
+      mode,
       correctMoves: correctMovesRef.current,
       incorrectMoves: incorrectMovesRef.current,
       durationMs: Math.max(0, Date.now() - sessionStartedAtRef.current),
     })
-      .then(() => setLearnedLines(getKnownLearnedLines(slug, opening.lines)))
+      .then(() => {
+        const nextLearnedLines = getKnownLearnedLines(slug, opening.lines);
+        setLearnedLines(nextLearnedLines);
+        setPracticePerfectedCount(getPracticePerfectedCount(slug, nextLearnedLines));
+      })
       .catch((error) => console.warn("Unable to sync training progress:", error.message));
-  }, [currentLine, lineIndex, opening.lines, slug]);
+  }, [currentLine, lineIndex, mode, opening.lines, slug]);
 
   const playCompletionConfetti = useCallback(() => {
     if (localStorage.getItem("chessengineered_confetti") === "false") return;
@@ -474,14 +532,14 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     timer.current = setTimeout(playNext, initialDelay);
   }, [completeCurrentLine, moves, opening.playerSide, soundsEnabled, updateInstruction, updateEvaluation, playCompletionConfetti]);
 
-  const startLine = useCallback((index: number) => {
+  const startLine = useCallback((index: number, nextMode = mode) => {
     const nextIndex = index >= 0 && index < opening.lines.length ? index : 0;
     if (timer.current) clearTimeout(timer.current);
     sessionStartedAtRef.current = Date.now();
     correctMovesRef.current = 0;
     incorrectMovesRef.current = 0;
     completedLineRef.current = false;
-    saveResumeLine(slug, opening.lines[nextIndex]);
+    if (nextMode === "learn") saveResumeLine(slug, opening.lines[nextIndex]);
     setLineIndex(nextIndex);
     setGame(new Chess());
     setMoveIndex(0);
@@ -493,7 +551,29 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     setCompleted(false);
     setBoardLocked(true);
     setRestartVersion((version) => version + 1);
-  }, [opening.lines, slug]);
+  }, [mode, opening.lines, slug]);
+
+  const changeMode = useCallback((nextMode: TrainingMode) => {
+    if (nextMode === mode) return;
+    if (nextMode === "practice" && learnedLines.size === 0) {
+      alert("Learn some lines first!");
+      return;
+    }
+    const now = Date.now();
+    const durationMs = now - activityStartedAtRef.current;
+    activityStartedAtRef.current = now;
+    if (supabase && durationMs >= 1000) {
+      void recordTrainingActivity(supabase, slug, durationMs, mode).catch((error) =>
+        console.warn("Unable to sync training time:", error.message),
+      );
+    }
+    setMode(nextMode);
+    activityModeRef.current = nextMode;
+    const nextIndex = nextMode === "practice"
+      ? getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex)
+      : getResumeLineIndex(slug, opening.lines);
+    startLine(nextIndex, nextMode);
+  }, [learnedLines, lineIndex, mode, opening.lines, slug, startLine]);
 
   useEffect(() => {
     const chess = new Chess();
@@ -510,6 +590,14 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       if (abortControllerRef.current) abortControllerRef.current.abort();
     };
   }, [lineIndex, playOpponentMoves, restartVersion, updateEvaluation]);
+
+  useEffect(() => {
+    if (!completed || mode !== "practice") return;
+    timer.current = setTimeout(() => startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex)), 650);
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, [completed, learnedLines, lineIndex, mode, opening.lines, startLine]);
 
   function chooseSquare(square: Square) {
     if (boardLocked) return;
@@ -665,6 +753,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
     if (hint) {
       // Si el hint ya está activo, hacemos "Solve" (Resolver la jugada automáticamente)
+      if (mode === "practice") incorrectMovesRef.current += 1;
       setHint(null);
       setSelected(null);
       setLegalTargets([]);
@@ -710,6 +799,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     playOpponentMoves,
     updateInstruction,
     updateEvaluation,
+    mode,
   ]);
 
 
@@ -742,6 +832,9 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     localStorage.setItem("chessengineered_progress", JSON.stringify(progress));
     saveResumeLine(slug, opening.lines[0]);
     setLearnedLines(new Set());
+    setPracticePerfectedCount(0);
+    setMode("learn");
+    activityModeRef.current = "learn";
     startLine(0);
     setSettingsOpen(false);
     if (!supabase) return;
@@ -887,7 +980,9 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
         <div className={`completion-overlay ${completed ? "open" : ""}`} id="completionOverlay">
           <h2>Line Complete!</h2>
-          <div className="completion-sub" id="completionSub">Great job! You learned a new line.</div>
+          <div className="completion-sub" id="completionSub">
+            {mode === "practice" ? "Practice complete. Loading another learned line..." : "Great job! You learned a new line."}
+          </div>
         </div>
       </div>
 
@@ -902,7 +997,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                 <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
               </svg>
               <div>
-                <div className="mode-name">Learn</div>
+                <div className="mode-name">{mode === "practice" ? "Practice" : "Learn"}</div>
                 <div className="opening-name" id="openingName">{opening.displayName.replace(" Mastery", "")}</div>
               </div>
             </div>
@@ -916,7 +1011,9 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
               <div className="dropdown-list" id="dropdownList">
                 {opening.lines.map((line, index) => {
                   const learned = learnedLines.has(line);
-                  const locked = !learned && index !== getNextLearnLineIndex(opening.lines, learnedLines);
+                  const locked = mode === "practice"
+                    ? !learned
+                    : !learned && index !== getNextLearnLineIndex(opening.lines, learnedLines);
                   return (
                     <div
                       key={line}
@@ -990,7 +1087,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                 </button>
                 <button
                   className="btn-next-line"
-                  onClick={() => startLine(nextLearnLineIndex)}
+                  onClick={() => startLine(mode === "practice" ? nextPracticeLineIndex : nextLearnLineIndex)}
                   style={{
                     flex: 1,
                     height: "56px",
@@ -1006,7 +1103,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
               </div>
             ) : (
               <>
-                <button className="mode-btn active" id="modeLearn" type="button">
+                <button className={`mode-btn ${mode === "learn" ? "active" : ""}`} id="modeLearn" type="button" onClick={() => changeMode("learn")}>
                   <div className="mode-btn-main">
                     <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)" }}>
                       <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
@@ -1017,13 +1114,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                   <span className="mode-sub" id="learnStats">{learnedCount} lines discovered</span>
                 </button>
 
-                <button className="mode-btn" id="modePractice" type="button" onClick={() => {
-                  if (learnedCount === 0) {
-                    alert("Learn some lines first!");
-                  } else {
-                    alert("Practice mode is currently integrated into the learning sequence.");
-                  }
-                }}>
+                <button className={`mode-btn ${mode === "practice" ? "active" : ""} ${learnedCount === 0 ? "locked" : ""}`} id="modePractice" disabled={learnedCount === 0} type="button" onClick={() => changeMode("practice")}>
                   <div className="mode-btn-main">
                     <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)" }}>
                       <circle cx="12" cy="12" r="10"/>
@@ -1032,7 +1123,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                     </svg>
                     <span className="mode-title">Practice</span>
                   </div>
-                  <span className="mode-sub" id="practiceStats">0/{opening.lines.length} lines perfected</span>
+                  <span className="mode-sub" id="practiceStats">{practicePerfectedCount}/{learnedCount} lines perfected</span>
                 </button>
 
                 <button className="mode-btn locked" id="modePuzzles" disabled type="button">
@@ -1204,7 +1295,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                 <path d="M3 4.5h4v4"/>
               </svg>
             </button>
-            <button className="toolbar-btn complete-next-line" type="button" id="btnCompleteNext" onClick={() => startLine(nextLearnLineIndex)}>
+            <button className="toolbar-btn complete-next-line" type="button" id="btnCompleteNext" onClick={() => startLine(mode === "practice" ? nextPracticeLineIndex : nextLearnLineIndex)}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
                 <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>

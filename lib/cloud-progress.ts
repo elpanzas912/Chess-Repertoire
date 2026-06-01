@@ -8,6 +8,7 @@ const pendingActivityKey = "chessengineered_pending_training_activity";
 type PendingTrainingActivity = {
   eventId: string;
   slug: string;
+  mode: "learn" | "practice";
   durationMs: number;
   timezone: string;
 };
@@ -68,7 +69,7 @@ export async function flushPendingTrainingActivity(client: SupabaseClient) {
     const { error } = await client.rpc("record_training_activity", {
       p_event_id: event.eventId,
       p_opening_slug: event.slug,
-      p_mode: "learn",
+      p_mode: event.mode ?? "learn",
       p_duration_ms: event.durationMs,
       p_timezone: event.timezone,
     });
@@ -117,12 +118,13 @@ export async function resetOpeningProgress(client: SupabaseClient, slug: string)
   return cacheProgress((data as CloudProgress | null) ?? {});
 }
 
-export async function recordLearnCompletion(
+export async function recordTrainingCompletion(
   client: SupabaseClient,
   input: {
     eventId: string;
     slug: string;
     line: string;
+    mode: "learn" | "practice";
     correctMoves: number;
     incorrectMoves: number;
     durationMs: number;
@@ -132,7 +134,7 @@ export async function recordLearnCompletion(
     p_event_id: input.eventId,
     p_opening_slug: input.slug,
     p_line_pgn: input.line,
-    p_mode: "learn",
+    p_mode: input.mode,
     p_correct_moves: input.correctMoves,
     p_incorrect_moves: input.incorrectMoves,
     p_duration_ms: input.durationMs,
@@ -146,12 +148,18 @@ export async function recordLearnCompletion(
   return cacheProgress(user ? await applyActivitySummary(client, user.id, progress) : progress);
 }
 
-export async function recordTrainingActivity(client: SupabaseClient, slug: string, durationMs: number) {
+export async function recordTrainingActivity(
+  client: SupabaseClient,
+  slug: string,
+  durationMs: number,
+  mode: "learn" | "practice" = "learn",
+) {
   writePendingActivity([
     ...readPendingActivity(),
     {
       eventId: createEventId(),
       slug,
+      mode,
       durationMs: Math.max(1, Math.min(60000, Math.round(durationMs))),
       timezone: timezone(),
     },
