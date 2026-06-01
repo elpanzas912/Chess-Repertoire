@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { supabase } from "../../lib/supabase";
 import { clearLocalUserData, prepareLocalProgressForUser } from "../../lib/local-progress";
 import { loadCloudProgress, readCachedProgress } from "../../lib/cloud-progress";
+import { loadOpening, OpeningAccessError } from "../../lib/opening-cache";
 
 type Opening = {
   id: string;
@@ -68,6 +70,7 @@ function BrandMark() {
 }
 
 export function OpeningsLibrary({ openings }: { openings: Openings }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [side, setSide] = useState<SideFilter>("all");
   const [progress, setProgress] = useState<Progress>({});
@@ -80,6 +83,7 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
   const [usage, setUsage] = useState<Record<string, { count: number; lastUsed: number }>>({});
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
   const [showUnlockOverlay, setShowUnlockOverlay] = useState(false);
+  const [accountLoaded, setAccountLoaded] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -129,61 +133,70 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
-    if (!supabase) return;
+    if (!supabase) {
+      setAccountLoaded(true);
+      return;
+    }
     const client = supabase;
 
     const loadAccount = async () => {
-      const {
-        data: { user },
-      } = await client.auth.getUser();
+      try {
+        setAccountLoaded(false);
+        const {
+          data: { user },
+        } = await client.auth.getUser();
 
-      setSessionEmail(user?.email ?? null);
-      if (!user) {
+        setSessionEmail(user?.email ?? null);
+        if (!user) {
+          setHasSubscription(false);
+          setProgress(readProgress());
+          setStreak(readStreak());
+          return;
+        }
+        prepareLocalProgressForUser(user.id);
         setProgress(readProgress());
         setStreak(readStreak());
-        return;
-      }
-      prepareLocalProgressForUser(user.id);
-      setProgress(readProgress());
-      setStreak(readStreak());
-      try {
-        setUsage(JSON.parse(localStorage.getItem("chessengineered_usage") ?? "{}"));
-      } catch {
-        setUsage({});
-      }
-
-      const [{ data: subscription }, { data: profile }, cloudProgress] = await Promise.all([
-        client
-          .from("subscriptions")
-          .select("status, current_period_end")
-          .eq("user_id", user.id)
-          .maybeSingle(),
-        client.from("profiles").select("free_opening_slug").eq("id", user.id).maybeSingle(),
-        loadCloudProgress(client, user.id).catch(() => null),
-      ]);
-
-      const paid =
-        !!subscription &&
-        ["active", "trialing"].includes(subscription.status) &&
-        subscription.current_period_end &&
-        new Date(subscription.current_period_end).getTime() > Date.now();
-
-      setHasSubscription(!!paid);
-      setFreeOpening(profile?.free_opening_slug ?? null);
-      if (cloudProgress) {
-        setProgress(cloudProgress as Progress);
-        setStreak(Math.max(0, Math.round(Number(cloudProgress.dailyStreak?.count) || 0)));
-        if (cloudProgress.openingUsage && typeof cloudProgress.openingUsage === "object") {
-          setUsage(cloudProgress.openingUsage);
-          localStorage.setItem("chessengineered_usage", JSON.stringify(cloudProgress.openingUsage));
+        try {
+          setUsage(JSON.parse(localStorage.getItem("chessengineered_usage") ?? "{}"));
+        } catch {
+          setUsage({});
         }
+
+        const [{ data: subscription }, { data: profile }, cloudProgress] = await Promise.all([
+          client
+            .from("subscriptions")
+            .select("status, current_period_end")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+          client.from("profiles").select("free_opening_slug").eq("id", user.id).maybeSingle(),
+          loadCloudProgress(client, user.id).catch(() => null),
+        ]);
+
+        const paid =
+          !!subscription &&
+          ["active", "trialing"].includes(subscription.status) &&
+          subscription.current_period_end &&
+          new Date(subscription.current_period_end).getTime() > Date.now();
+
+        setHasSubscription(!!paid);
+        setFreeOpening(profile?.free_opening_slug ?? null);
+        if (cloudProgress) {
+          setProgress(cloudProgress as Progress);
+          setStreak(Math.max(0, Math.round(Number(cloudProgress.dailyStreak?.count) || 0)));
+          if (cloudProgress.openingUsage && typeof cloudProgress.openingUsage === "object") {
+            setUsage(cloudProgress.openingUsage);
+            localStorage.setItem("chessengineered_usage", JSON.stringify(cloudProgress.openingUsage));
+          }
+        }
+      } finally {
+        setAccountLoaded(true);
       }
     };
 
-    void loadAccount();
+    void loadAccount().catch((error) => console.warn("Unable to load account:", error.message));
     const { data } = client.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_OUT") clearLocalUserData();
-      void loadAccount();
+      void loadAccount().catch((error) => console.warn("Unable to load account:", error.message));
     });
     return () => {
       if (data && data.subscription) {
@@ -201,6 +214,44 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
     newUsage[slug].lastUsed = Date.now();
     setUsage(newUsage);
     localStorage.setItem("chessengineered_usage", JSON.stringify(newUsage));
+  }
+
+  function preloadOpening(slug: string) {
+    if (!supabase) return;
+    void loadOpening(supabase, slug).catch(() => undefined);
+  }
+
+  async function openOpening(
+    event: MouseEvent<HTMLAnchorElement>,
+    slug: string,
+    isFreePickable: boolean,
+    isUnlocked: boolean,
+  ) {
+    event.preventDefault();
+    if (!supabase) return;
+    if (!isFreePickable && !isUnlocked) {
+      router.push("/plans");
+      return;
+    }
+    try {
+      await loadOpening(supabase, slug);
+      if (isFreePickable) {
+        localStorage.setItem("chessengineered_free_opening", slug);
+        setFreeOpening(slug);
+      }
+      trackOpeningUsage(slug);
+      router.push(`/opening/${slug}`);
+    } catch (error) {
+      if (error instanceof OpeningAccessError && error.status === 401) {
+        router.push(`/login?next=/opening/${slug}`);
+        return;
+      }
+      if (error instanceof OpeningAccessError && error.status === 403) {
+        router.push("/plans");
+        return;
+      }
+      console.warn("Unable to preload opening:", error instanceof Error ? error.message : error);
+    }
   }
 
   const streakDetails = useMemo(() => {
@@ -435,7 +486,7 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
       </div>
 
       {/* Free Tier Banner */}
-      {!hasSubscription && (
+      {accountLoaded && !hasSubscription && (
         <div className="free-tier-banner" id="freeTierBanner">
           <div className="free-tier-inner">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -488,27 +539,33 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
             const pct = o.lineCount > 0 ? Math.round((learned / o.lineCount) * 100) : 0;
             const practicePct = o.lineCount > 0 ? Math.round((perfected / o.lineCount) * 100) : 0;
 
-            const isUnlocked = hasSubscription || freeOpening === slug;
-            const isFreePickable = !hasSubscription && !freeOpening;
+            const isUnlocked = accountLoaded && (hasSubscription || freeOpening === slug);
+            const isFreePickable = accountLoaded && !hasSubscription && !freeOpening;
+            const isAccessLoading = !accountLoaded;
 
             return (
               <Link
                 key={o.id}
-                className={`card ${!isUnlocked && !isFreePickable ? "card-locked" : ""}`}
-                href={!isUnlocked && !isFreePickable ? "/plans" : `/opening/${slug}`}
-                onClick={() => {
-                  if (isFreePickable) {
-                    localStorage.setItem("chessengineered_free_opening", slug);
-                    setFreeOpening(slug);
-                    trackOpeningUsage(slug);
-                  } else if (isUnlocked) {
-                    trackOpeningUsage(slug);
+                className={`card ${!isAccessLoading && !isUnlocked && !isFreePickable ? "card-locked" : ""}`}
+                href={isAccessLoading ? "#" : !isUnlocked && !isFreePickable ? "/plans" : `/opening/${slug}`}
+                aria-disabled={isAccessLoading}
+                onMouseEnter={() => {
+                  if (!isAccessLoading && (isUnlocked || isFreePickable)) preloadOpening(slug);
+                }}
+                onFocus={() => {
+                  if (!isAccessLoading && (isUnlocked || isFreePickable)) preloadOpening(slug);
+                }}
+                onClick={(event) => {
+                  if (isAccessLoading) {
+                    event.preventDefault();
+                    return;
                   }
+                  void openOpening(event, slug, isFreePickable, isUnlocked);
                 }}
               >
                 <div className="card-thumb">
                   <img src={`/boards/${slug}.png`} alt={`${o.displayName} board`} />
-                  {!isUnlocked && !isFreePickable && (
+                  {!isAccessLoading && !isUnlocked && !isFreePickable && (
                     <div className="card-lock">
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
@@ -540,7 +597,7 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
                   </div>
                   <div className="card-foot">
                     <span className="card-cta">
-                      {isFreePickable ? "Pick as Free" : isUnlocked ? "Start training" : "Upgrade to unlock"}{" "}
+                      {isAccessLoading ? "Loading access" : isFreePickable ? "Pick as Free" : isUnlocked ? "Start training" : "Upgrade to unlock"}{" "}
                       <span className="cta-arrow">→</span>
                     </span>
                   </div>
