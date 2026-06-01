@@ -3539,6 +3539,11 @@ body {
     align-items: center !important;
     justify-content: space-between !important;
     gap: var(--space-xs) !important;
+    height: 100% !important;
+  }
+
+  body.line-complete-mobile .trainer-toolbar {
+    height: 60px !important;
   }
 
   body.line-complete-mobile .trainer-toolbar > .toolbar-group {
@@ -3548,13 +3553,15 @@ body {
   body.line-complete-mobile .mobile-complete-controls {
     display: flex !important;
   }
+
+  /* Premium Next Line Button - Matches desktop exactly */
   .complete-next-line {
     flex: 1 1 auto !important;
     min-width: 0 !important;
     background: #fbbf24 !important;
     color: #121214 !important;
     border: none !important;
-    border-radius: 10px !important;
+    border-radius: 12px !important;
     font-weight: 700 !important;
     box-shadow: 0 4px 16px rgba(251, 191, 36, 0.25) !important;
     transition: all 0.25s var(--ease-out) !important;
@@ -3562,12 +3569,91 @@ body {
     align-items: center !important;
     justify-content: center !important;
     gap: 8px !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    font-size: 1.05rem !important;
+  }
+
+  .complete-next-line svg {
+    width: 20px !important;
+    height: 20px !important;
   }
 
   .complete-next-line:hover {
     background: #f59e0b !important;
-    transform: translateY(-1px) !important;
-    box-shadow: 0 6px 18px rgba(251, 191, 36, 0.35) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 24px rgba(251, 191, 36, 0.4) !important;
+  }
+
+  .complete-next-line:active {
+    transform: translateY(0) !important;
+  }
+
+  /* Premium Restart Button - Matches desktop exactly */
+  #btnCompleteRestart {
+    height: 48px !important;
+    min-height: 48px !important;
+    width: 48px !important;
+    min-width: 48px !important;
+    border-radius: 12px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all 0.25s var(--ease-out) !important;
+    padding: 0 !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    background: rgba(255, 255, 255, 0.03) !important;
+    color: #fafafa !important;
+  }
+
+  #btnCompleteRestart svg {
+    width: 24px !important;
+    height: 24px !important;
+  }
+
+  /* Make settings and nav icons larger and matches premium look */
+  #btnSettings svg,
+  #btnPrev svg,
+  #btnNext svg {
+    width: 21px !important;
+    height: 21px !important;
+  }
+
+  #btnCompleteRestart:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border-color: rgba(255, 255, 255, 0.15) !important;
+    transform: translateY(-2px) !important;
+  }
+
+  #btnCompleteRestart:active {
+    transform: translateY(0) !important;
+  }
+
+  /* Premium Mobile Mode Toggle Button - Matches desktop secondary button */
+  .mobile-complete-controls .mobile-mode-toggle {
+    height: 48px !important;
+    min-height: 48px !important;
+    border-radius: 12px !important;
+    padding: 0 16px !important;
+    font-size: 0.95rem !important;
+    font-weight: 600 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all 0.25s var(--ease-out) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    background: rgba(255, 255, 255, 0.03) !important;
+    color: #fafafa !important;
+  }
+
+  .mobile-complete-controls .mobile-mode-toggle:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border-color: rgba(255, 255, 255, 0.15) !important;
+    transform: translateY(-2px) !important;
+  }
+
+  .mobile-complete-controls .mobile-mode-toggle:active {
+    transform: translateY(0) !important;
   }
   .feedback {
     bottom: 48px !important;
