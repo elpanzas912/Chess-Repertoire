@@ -902,6 +902,8 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
               </button>
             </div>
           </div>
+          {/* Bottom spacer to lift the selector up and keep it stable */}
+          <div style={{ height: "110px", flexShrink: 0 }} />
         </div>
 
         {/* Bottom Toolbar */}
