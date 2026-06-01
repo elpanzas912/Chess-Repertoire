@@ -3124,13 +3124,14 @@ body {
     order: 3 !important;
     height: auto !important;
     min-height: 86px !important;
-    max-height: 130px !important;
+    max-height: 160px !important;
     overflow: hidden !important;
     padding: 0 12px !important;
     align-items: stretch !important;
     background: transparent !important;
     border: none !important;
-    margin: 0 !important;
+    margin-top: auto !important;
+    margin-bottom: 0 !important;
     gap: 0 !important;
     box-shadow: none !important;
   }
@@ -3178,7 +3179,7 @@ body {
   }
 
   .eval-bar {
-    width: min(calc(100vw - 8px), calc(100dvh - 260px)) !important;
+    width: min(calc(100vw - 8px), calc(100dvh - 220px)) !important;
     max-width: 100% !important;
     height: 14px !important;
     border-radius: var(--radius-sm) !important;
@@ -3225,8 +3226,8 @@ body {
   }
 
   #board {
-    width: min(100vw, calc(100dvh - 260px)) !important;
-    height: min(100vw, calc(100dvh - 260px)) !important;
+    width: min(100vw, calc(100dvh - 220px)) !important;
+    height: min(100vw, calc(100dvh - 220px)) !important;
     max-width: 100% !important;
     min-width: 300px !important;
     min-height: 300px !important;
@@ -3583,6 +3584,7 @@ body {
     height: auto !important;
     min-height: 72px !important;
     max-height: 96px !important;
+    margin-top: auto !important;
   }
 
   .speech-bubble {
@@ -3591,14 +3593,14 @@ body {
   }
 
   #board {
-    width: min(100vw, calc(100dvh - 226px)) !important;
-    height: min(100vw, calc(100dvh - 226px)) !important;
+    width: min(100vw, calc(100dvh - 206px)) !important;
+    height: min(100vw, calc(100dvh - 206px)) !important;
     min-width: 280px !important;
     min-height: 280px !important;
   }
 
   .eval-bar {
-    width: min(calc(100vw - 8px), calc(100dvh - 226px)) !important;
+    width: min(calc(100vw - 8px), calc(100dvh - 206px)) !important;
   }
 }
 
