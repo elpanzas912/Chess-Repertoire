@@ -113,7 +113,7 @@ export function ChessboardReact({
           pieces: { file: `pieces/${propsRef.current.pieceSet}.svg`, tileSize: 40 },
           cssClass: cssClass,
           borderType: BORDER_TYPE.none,
-          animationDuration: 250,
+          animationDuration: 200,
         },
         orientation: propsRef.current.orientation === "w" ? COLOR.white : COLOR.black,
         extensions: [{ class: Markers }, { class: RightClickAnnotator }],

@@ -389,7 +389,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
         updateEvaluation(nextChess);
         setMoveIndex(index);
         updateInstruction(chess);
-        const unlockDelay = index > startIndex ? 0 : 250;
+        const unlockDelay = index > startIndex ? 0 : 200;
         setTimeout(() => {
           setBoardLocked(false);
         }, unlockDelay);
@@ -406,7 +406,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       setMoveIndex(index);
       playSound(pieceSound(move, false), soundsEnabled);
       updateInstruction(chess);
-      timer.current = setTimeout(playNext, 250);
+      timer.current = setTimeout(playNext, 200);
     };
 
     setBoardLocked(true);
@@ -440,7 +440,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     setCompleted(false);
     setBoardLocked(true);
     playSound("game-start", soundsEnabled);
-    playOpponentMoves(chess, 0, 240);
+    playOpponentMoves(chess, 0, 200);
     return () => {
       if (timer.current) clearTimeout(timer.current);
       if (evalTimerRef.current) clearTimeout(evalTimerRef.current);
@@ -511,7 +511,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
           setLastMove(null);
           setTimeout(() => {
             setBoardLocked(false);
-          }, 250);
+          }, 200);
         }, 500);
 
         return true; // Permite soltar la pieza en la casilla incorrecta para simular el feedback visual
