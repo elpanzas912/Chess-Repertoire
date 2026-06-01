@@ -593,7 +593,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
   useEffect(() => {
     if (!completed || mode !== "practice") return;
-    timer.current = setTimeout(() => startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex)), 650);
+    timer.current = setTimeout(() => startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex)), 150);
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
@@ -891,7 +891,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   }, []);
 
   useEffect(() => {
-    if (completed) {
+    if (completed && mode === "learn") {
       document.body.classList.add("line-complete-mobile");
     } else {
       document.body.classList.remove("line-complete-mobile");
@@ -899,7 +899,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     return () => {
       document.body.classList.remove("line-complete-mobile");
     };
-  }, [completed]);
+  }, [completed, mode]);
 
   const orderedRanks = opening.playerSide === "b" ? [...ranks].reverse() : ranks;
   const orderedFiles = opening.playerSide === "b" ? [...files].reverse() : files;
@@ -978,7 +978,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
           </div>
         </div>
 
-        <div className={`completion-overlay ${completed ? "open" : ""}`} id="completionOverlay">
+        <div className={`completion-overlay ${completed && mode === "learn" ? "open" : ""}`} id="completionOverlay">
           <h2>Line Complete!</h2>
           <div className="completion-sub" id="completionSub">
             {mode === "practice" ? "Practice complete. Loading another learned line..." : "Great job! You learned a new line."}
@@ -1059,7 +1059,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
           {/* Mode Selector */}
           <div className="mode-selector">
-            {completed ? (
+            {completed && mode === "learn" ? (
               <div style={{ display: "flex", gap: "12px", width: "100%" }}>
                 <button
                   className="focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-hidden focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 touch-manipulation select-none border-input hover:bg-accent hover:text-accent-foreground border shadow-xs h-8 rounded-md px-3 sm:px-4 text-xs sm:h-10 sm:text-base btn-secondary"
@@ -1087,7 +1087,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                 </button>
                 <button
                   className="btn-next-line"
-                  onClick={() => startLine(mode === "practice" ? nextPracticeLineIndex : nextLearnLineIndex)}
+                  onClick={() => startLine(nextLearnLineIndex)}
                   style={{
                     flex: 1,
                     height: "56px",
