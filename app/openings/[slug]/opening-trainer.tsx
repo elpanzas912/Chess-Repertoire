@@ -158,9 +158,14 @@ export function OpeningTrainer({ slug }: { slug: string }) {
 
 function TrainerMessage({ message }: { message: string }) {
   return (
-    <main className="trainer-v2-page">
-      <header className="trainer-v2-topbar"><Link href="/openings">← Aperturas</Link></header>
-      <section className="trainer-v2-loading">{message}</section>
+    <main className="trainer-layout" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
+      <div className="bg-glows" aria-hidden="true">
+        <div className="glow glow-1"></div>
+        <div className="glow glow-2"></div>
+      </div>
+      <section style={{ fontSize: "1.25rem", fontWeight: 500, color: "var(--color-muted)", fontFamily: "var(--font-display)" }}>
+        {message}
+      </section>
     </main>
   );
 }
@@ -519,6 +524,62 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     setSettingsOpen(false);
   }
 
+  const handlePrev = useCallback(() => {
+    if (moveIndex > 0) {
+      const prevIndex = moveIndex - 1;
+      const prevChess = new Chess();
+      for (let i = 0; i < prevIndex; i++) {
+        prevChess.move(moves[i].san);
+      }
+      setGame(prevChess);
+      updateEvaluation(prevChess);
+      setMoveIndex(prevIndex);
+      setLastMove(prevIndex > 0 ? { from: moves[prevIndex - 1].from, to: moves[prevIndex - 1].to } : null);
+      setFeedback(null);
+      setCompleted(false);
+    }
+  }, [moveIndex, moves, updateEvaluation]);
+
+  const handleNext = useCallback(() => {
+    if (moveIndex < moves.length) {
+      const expected = moves[moveIndex];
+      const chess = new Chess(game.fen());
+      const move = chess.move(expected.san);
+      if (move) {
+        const nextIndex = moveIndex + 1;
+        setGame(chess);
+        updateEvaluation(chess);
+        setMoveIndex(nextIndex);
+        setLastMove({ from: move.from, to: move.to });
+        setFeedback(null);
+        if (nextIndex === moves.length) {
+          setCompleted(true);
+          saveLearnedLine(slug, currentLine);
+          setLearnedCount(getLearnedCount(slug));
+          playSound("game-end", soundsEnabled);
+        }
+      }
+    }
+  }, [moveIndex, moves, game, slug, soundsEnabled, updateEvaluation]);
+
+  useEffect(() => {
+    document.body.classList.add("trainer-active");
+    return () => {
+      document.body.classList.remove("trainer-active");
+    };
+  }, []);
+
+  useEffect(() => {
+    if (completed) {
+      document.body.classList.add("line-complete-mobile");
+    } else {
+      document.body.classList.remove("line-complete-mobile");
+    }
+    return () => {
+      document.body.classList.remove("line-complete-mobile");
+    };
+  }, [completed]);
+
   const orderedRanks = opening.playerSide === "b" ? [...ranks].reverse() : ranks;
   const orderedFiles = opening.playerSide === "b" ? [...files].reverse() : files;
   const clampedScore = Math.max(-10, Math.min(10, evalScore));
@@ -535,156 +596,322 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const nextExpected = moves[moveIndex];
 
   return (
-    <main className={`trainer-v2-page theme-${boardTheme}`}>
-      <div className="trainer-v2-glow glow-one" />
-      <div className="trainer-v2-glow glow-two" />
-      <div className="trainer-v2-layout">
-        <section className="trainer-v2-board-area">
-          <div className="trainer-v2-progress-row">
-            <Link aria-label="Volver a aperturas" href="/openings">←</Link>
-            <div className="trainer-v2-progress-track"><span style={{ width: `${progress}%` }} /></div>
-          </div>
-          <div className="trainer-v2-progress-copy">
-            <span>Movimiento {moveIndex}/{moves.length}</span>
-            <span>{opening.lineNames[currentLine] ?? `Línea ${lineIndex + 1}`}</span>
-          </div>
+    <div className="trainer-layout">
+      {/* Ambient Glowing Background Elements */}
+      <div className="bg-glows" aria-hidden="true">
+        <div className="glow glow-1"></div>
+        <div className="glow glow-2"></div>
+      </div>
 
-          <div className="trainer-v2-board-row">
-            {showEval && (
-              <div className="trainer-v2-eval" aria-label={`Evaluación ${formatScoreText()}`}>
-                <span className={`${evalLoading ? "is-loading" : ""} ${evalFallback ? "is-fallback" : ""}`}>
-                  {formatScoreText()}
-                </span>
-                <i style={{ height: `${whitePercent}%` }} />
-              </div>
-            )}
-            <div className="trainer-v2-board" style={{ display: "block" }}>
-              <ChessboardReact
-                position={game.fen()}
-                orientation={opening.playerSide}
-                pieceSet={pieceSet}
-                boardTheme={boardTheme}
-                inputEnabled={!completed}
-                inputColor={opening.playerSide}
-                onMoveAttempt={handleMoveAttempt}
-                lastMove={lastMove}
-                hintSquare={hint}
-                feedback={feedback}
-                showLegalMarkers={true}
-                gameInstance={game}
-              />
+      {/* Board */}
+      <div className="board-area">
+        <div className="line-progress-wrap">
+          <div className="line-progress-row">
+            <Link className="progress-back-btn" href="/openings" aria-label="Back to openings">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3.283 10.94a1.5 1.5 0 0 0 0 2.12l5.656 5.658a1.5 1.5 0 1 0 2.122-2.122L7.965 13.5H19.5a1.5 1.5 0 0 0 0-3H7.965l3.096-3.096a1.5 1.5 0 1 0-2.122-2.121z"/>
+              </svg>
+            </Link>
+            <div className="line-progress-track">
+              <div className="line-progress-fill" id="lineProgressBar" style={{ width: `${progress}%` }}></div>
             </div>
           </div>
+          <div className="line-progress-label">
+            <span className="move-num" id="progressMoveNum">Move {moveIndex}/{moves.length}</span>
+            <span className="move-name" id="progressLineName">{opening.lineNames[currentLine] ?? `Línea ${lineIndex + 1}`}</span>
+          </div>
+        </div>
 
-          {completed && (
-            <section className="trainer-v2-complete">
-              <strong>Línea completada</strong>
-              <span>Aprendiste una nueva variante.</span>
-              <button onClick={() => startLine((lineIndex + 1) % opening.lines.length)} type="button">Siguiente línea</button>
-            </section>
+        <div className="board-with-eval">
+          {showEval && (
+            <div
+              className="eval-bar"
+              id="evalBar"
+              style={{
+                "--white-pct": `${whitePercent}%`,
+                "--black-pct": `${100 - whitePercent}%`
+              } as React.CSSProperties}
+            >
+              <div className="eval-bar-white" id="evalBarWhite"></div>
+              <div className="eval-bar-black" id="evalBarBlack"></div>
+              <div className={`eval-bar-score ${evalLoading ? "is-loading" : ""} ${evalFallback ? "is-fallback" : ""}`} id="evalBarScore">
+                {formatScoreText()}
+              </div>
+            </div>
           )}
-        </section>
+          <div id="board">
+            <ChessboardReact
+              position={game.fen()}
+              orientation={opening.playerSide}
+              pieceSet={pieceSet}
+              boardTheme={boardTheme}
+              inputEnabled={!completed}
+              inputColor={opening.playerSide}
+              onMoveAttempt={handleMoveAttempt}
+              lastMove={lastMove}
+              hintSquare={hint}
+              feedback={feedback}
+              showLegalMarkers={true}
+              gameInstance={game}
+            />
+          </div>
+        </div>
 
-        <aside className="trainer-v2-panel">
-          <div className="trainer-v2-course-select">
-            <button onClick={() => setLinePickerOpen((open) => !open)} type="button">
-              <span><strong>Aprender</strong><small>{opening.displayName.replace(" Mastery", "")}</small></span>
-              <b>#{lineIndex + 1} <i>{linePickerOpen ? "▲" : "▼"}</i></b>
-            </button>
-            {linePickerOpen && (
-              <div className="trainer-v2-line-picker">
+        <div className={`completion-overlay ${completed ? "open" : ""}`} id="completionOverlay">
+          <h2>Line Complete!</h2>
+          <div className="completion-sub" id="completionSub">Great job! You learned a new line.</div>
+          <button className="btn-next-line" onClick={() => startLine((lineIndex + 1) % opening.lines.length)}>Next Line</button>
+        </div>
+      </div>
+
+      {/* Right Panel */}
+      <div className="trainer-panel">
+        <div className="panel-content">
+          {/* Mode Header */}
+          <div className="mode-header" id="modeHeader" onClick={() => setLinePickerOpen((open) => !open)}>
+            <div className="mode-info">
+              <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink-2)" }}>
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+              </svg>
+              <div>
+                <div className="mode-name">Learn</div>
+                <div className="opening-name" id="openingName">{opening.displayName.replace(" Mastery", "")}</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span className="line-counter" id="lineCounter">#{lineIndex + 1}</span>
+              <span id="dropdownChevron" style={{ fontSize: "0.7rem", color: "var(--color-muted)", transition: "transform 0.2s", transform: linePickerOpen ? "rotate(180deg)" : "" }}>▼</span>
+            </div>
+
+            {/* Line Dropdown */}
+            <div className={`line-dropdown ${linePickerOpen ? "open" : ""}`} id="lineDropdown">
+              <div className="dropdown-list" id="dropdownList">
                 {opening.lines.map((line, index) => (
-                  <button
-                    className={index === lineIndex ? "active" : ""}
+                  <div
                     key={line}
-                    onClick={() => {
+                    className={`dropdown-item ${index === lineIndex ? "active" : ""}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
                       startLine(index);
                       setLinePickerOpen(false);
                     }}
-                    type="button"
                   >
-                    <span>#{index + 1}</span>
-                    <strong>{opening.lineNames[line] ?? `Línea ${index + 1}`}</strong>
-                    {index < learnedCount && <em>✓</em>}
-                  </button>
+                    <span className="line-num">#{index + 1}</span>
+                    <span className="line-label">{opening.lineNames[line] ?? `Línea ${index + 1}`}</span>
+                    {index < learnedCount && <span className="line-check">✓</span>}
+                  </div>
                 ))}
               </div>
-            )}
+            </div>
           </div>
 
+          {/* Instruction Dialog */}
           {showDialog && (
-            <div className="trainer-v2-dialog">
-              <span aria-hidden="true">♔</span>
-              <p>{instruction || "Preparando la variante..."}</p>
+            <div className="instruction-dialog">
+              <div className="coach-avatar">
+                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="50" cy="50" r="48" fill="#fbbf24"/>
+                  <text x="50" y="70" text-anchor="middle" fontSize="55" fill="#fff">♔</text>
+                </svg>
+              </div>
+              <div className="speech-bubble">
+                <div className="instruction-text" id="instruction">
+                  {instruction || "Preparando la variante..."}
+                </div>
+              </div>
             </div>
           )}
 
-          <section className="trainer-v2-modes">
-            <button className="active" type="button"><strong>Aprender</strong><span>{learnedCount} líneas descubiertas</span></button>
-            <button type="button"><strong>Practicar</strong><span>Repasa las variantes aprendidas</span></button>
-            <button disabled type="button"><strong>Puzzles</strong><span>Resuelve posiciones y gana ELO</span></button>
-            <div>
-              <button disabled type="button"><strong>Drill</strong><span>Maximiza tu racha</span></button>
-              <button disabled type="button"><strong>Tiempo</strong><span>Corre contra el reloj</span></button>
-            </div>
-          </section>
+          {/* Mode Selector */}
+          <div className="mode-selector">
+            <button className="mode-btn active" id="modeLearn" type="button">
+              <div className="mode-btn-main">
+                <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)" }}>
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                </svg>
+                <span className="mode-title">Learn</span>
+              </div>
+              <span className="mode-sub" id="learnStats">{learnedCount} lines discovered</span>
+            </button>
 
-          <footer className="trainer-v2-toolbar">
-            <div className="trainer-v2-settings-wrap">
-              <button aria-expanded={settingsOpen} aria-label="Ajustes" onClick={() => setSettingsOpen((open) => !open)} type="button">⚙</button>
-              {settingsOpen && (
-                <div className="trainer-v2-settings">
-                  <strong>Ajustes</strong>
-                  <label><input checked={showEval} onChange={(event) => persistBoolean("chessengineered_show_eval", event.target.checked, setShowEval)} type="checkbox" /> Barra de evaluación</label>
-                  <label><input checked={soundsEnabled} onChange={(event) => persistBoolean("chessengineered_sound", event.target.checked, setSoundsEnabled)} type="checkbox" /> Sonidos</label>
-                  <label><input checked={hapticsEnabled} onChange={(event) => persistBoolean("chessengineered_haptic", event.target.checked, setHapticsEnabled)} type="checkbox" /> Vibración</label>
-                  <hr />
-                  <strong>Estilo del tablero</strong>
-                  <label>Piezas
-                    <select onChange={(event) => {
-                      const value = event.target.value as PieceSet;
-                      localStorage.setItem("chessengineered_piece_set", value);
-                      setPieceSet(value);
-                    }} value={pieceSet}>
-                      <option value="staunty">Staunty</option>
-                      <option value="maestro">Maestro</option>
-                      <option value="standard">Standard</option>
-                    </select>
-                  </label>
-                  <label>Tema
-                    <select onChange={(event) => {
-                      const value = event.target.value as BoardTheme;
-                      localStorage.setItem("chessengineered_board_theme", value);
-                      setBoardTheme(value);
-                    }} value={boardTheme}>
-                      <option value="green">Verde</option>
-                      <option value="white-violet">Blanco violeta</option>
-                      <option value="white-blue">Blanco azul</option>
-                      <option value="blue">Azul</option>
-                      <option value="brown">Marrón</option>
-                      <option value="classic">Clásico</option>
-                      <option value="black-and-white">Blanco y negro</option>
-                    </select>
-                  </label>
-                  <hr />
-                  <strong>Aprendizaje</strong>
-                  <label><input checked={trainingArrows} onChange={(event) => persistBoolean("chessengineered_training_arrows", event.target.checked, setTrainingArrows)} type="checkbox" /> Flechas de ayuda</label>
-                  <label><input checked={showDialog} onChange={(event) => persistBoolean("chessengineered_show_dialog", event.target.checked, setShowDialog)} type="checkbox" /> Instrucciones</label>
-                  <hr />
-                  <strong>Exportar</strong>
-                  <button onClick={() => window.open(`https://lichess.org/analysis/${encodeURIComponent(game.fen())}`, "_blank", "noopener,noreferrer")} type="button">Abrir en Lichess</button>
-                  <button onClick={() => void copyText(currentLine)} type="button">Copiar PGN</button>
-                  <button onClick={() => void copyText(game.fen())} type="button">Copiar FEN</button>
-                  <button onClick={resetProgress} type="button">Reiniciar progreso</button>
+            <button className="mode-btn" id="modePractice" type="button" onClick={() => {
+              if (learnedCount === 0) {
+                alert("Learn some lines first!");
+              } else {
+                alert("Practice mode is currently integrated into the learning sequence.");
+              }
+            }}>
+              <div className="mode-btn-main">
+                <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)" }}>
+                  <circle cx="12" cy="12" r="10"/>
+                  <circle cx="12" cy="12" r="6"/>
+                  <circle cx="12" cy="12" r="2"/>
+                </svg>
+                <span className="mode-title">Practice</span>
+              </div>
+              <span className="mode-sub" id="practiceStats">0/{opening.lines.length} lines perfected</span>
+            </button>
+
+            <div className="mode-grid">
+              <button className="mode-btn small locked" id="modeDrill" disabled type="button">
+                <div className="mode-btn-main">
+                  <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)", opacity: 0.5 }}>
+                    <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+                  </svg>
+                  <span className="mode-title">Drill</span>
                 </div>
-              )}
+                <span className="mode-sub">Max your streak</span>
+              </button>
+
+              <button className="mode-btn small locked" id="modeTime" disabled type="button">
+                <div className="mode-btn-main">
+                  <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)", opacity: 0.5 }}>
+                    <path d="M5 22h14"/>
+                    <path d="M5 2h14"/>
+                    <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/>
+                    <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/>
+                  </svg>
+                  <span className="mode-title">Time Trials</span>
+                </div>
+                <span className="mode-sub">Race the clock</span>
+              </button>
+
+              <button className="mode-btn small locked" id="modePuzzles" disabled type="button">
+                <div className="mode-btn-main">
+                  <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)", opacity: 0.5 }}>
+                    <path d="M19.439 7.85c-.049.322.059.648.289.878l1.378 1.378a1 1 0 0 1 .289.878c0 .486-.166.893-.457 1.181l-1.99 1.99a1 1 0 0 1-.878.289 1 1 0 0 1-.878-.289l-1.378-1.378a1.05 1.05 0 0 0-.878-.289c-.322 0-.649.059-.878.289l-1.378 1.378a1 1 0 0 1-.878.289 1 1 0 0 1-.878-.289l-1.99-1.99a1 1 0 0 1-.289-.878c0-.486.166-.893.457-1.181l1.378-1.378a1.05 1.05 0 0 0 .289-.878c0-.322-.059-.649-.289-.878l-1.378-1.378a1 1 0 0 1-.289-.878c0-.486.166-.893.457-1.181l1.99-1.99a1 1 0 0 1 .878-.289c.322 0 .649.059.878.289l1.378 1.378a1.05 1.05 0 0 0 .878.289c.322 0 .649-.059.878-.289l1.378-1.378a1 1 0 0 1 .878-.289 1 1 0 0 1 .878.289l1.99 1.99a1 1 0 0 1 .289.878c0 .486-.166.893-.457 1.181l-1.378 1.378a1.05 1.05 0 0 0-.289.878z"/>
+                    <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+                  </svg>
+                  <span className="mode-title">Puzzles</span>
+                </div>
+                <span className="mode-sub">Solve puzzles, win ELO</span>
+              </button>
             </div>
-            <span className="trainer-v2-version">v1.4.0</span>
-            <button onClick={() => setHint(nextExpected?.from ?? null)} type="button">Pista</button>
-            <button onClick={() => startLine(lineIndex)} type="button">Reiniciar</button>
-          </footer>
-        </aside>
+          </div>
+        </div>
+
+        {/* Bottom Toolbar */}
+        <div className="trainer-toolbar">
+          <div className="toolbar-group toolbar-default-left">
+            <button className="toolbar-btn icon-only" id="btnSettings" aria-label="Settings" aria-haspopup="menu" aria-expanded={settingsOpen} type="button" onClick={() => setSettingsOpen((open) => !open)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+            <div className={`settings-menu ${settingsOpen ? "open" : ""}`} id="settingsMenu" role="menu" aria-label="Settings">
+              <div className="settings-menu-title">Settings</div>
+              <div className="settings-menu-separator"></div>
+              <button className="settings-menu-item is-check" type="button" role="menuitemcheckbox" aria-checked={showEval} onClick={() => persistBoolean("chessengineered_show_eval", !showEval, setShowEval)}>
+                <span className="settings-check" aria-hidden="true">✓</span>
+                <span>Show Evaluation Bar</span>
+              </button>
+              <button className="settings-menu-item is-check" type="button" role="menuitemcheckbox" aria-checked={soundsEnabled} onClick={() => persistBoolean("chessengineered_sound", !soundsEnabled, setSoundsEnabled)}>
+                <span className="settings-check" aria-hidden="true">✓</span>
+                <span>Play Sounds</span>
+              </button>
+              <button className="settings-menu-item is-check" type="button" role="menuitemcheckbox" aria-checked={hapticsEnabled} onClick={() => persistBoolean("chessengineered_haptic", !hapticsEnabled, setHapticsEnabled)}>
+                <span className="settings-check" aria-hidden="true">✓</span>
+                <span>Haptic Feedback</span>
+              </button>
+              <div className="settings-menu-separator"></div>
+              <div className="settings-menu-title">Board Style</div>
+              <label className="settings-select-row">
+                <span>Piece Set</span>
+                <select value={pieceSet} onChange={(event) => {
+                  const value = event.target.value as PieceSet;
+                  localStorage.setItem("chessengineered_piece_set", value);
+                  setPieceSet(value);
+                }}>
+                  <option value="staunty">Staunty</option>
+                  <option value="maestro">Maestro</option>
+                  <option value="standard">Standard</option>
+                </select>
+              </label>
+              <label className="settings-select-row">
+                <span>Chessboard Theme</span>
+                <select value={boardTheme} onChange={(event) => {
+                  const value = event.target.value as BoardTheme;
+                  localStorage.setItem("chessengineered_board_theme", value);
+                  setBoardTheme(value);
+                }}>
+                  <option value="green">Green</option>
+                  <option value="white-violet">White Violet</option>
+                  <option value="white-blue">White Blue</option>
+                  <option value="blue">Blue</option>
+                  <option value="brown">Brown</option>
+                  <option value="classic">Classic</option>
+                  <option value="black-and-white">Black & White</option>
+                </select>
+              </label>
+              <div className="settings-menu-separator"></div>
+              <div className="settings-menu-title">Export &amp; Share</div>
+              <button className="settings-menu-item" type="button" onClick={() => window.open(`https://lichess.org/analysis/${encodeURIComponent(game.fen())}`, "_blank", "noopener,noreferrer")}>Open in Lichess</button>
+              <button className="settings-menu-item" type="button" onClick={() => void copyText(currentLine)}>Copy PGN</button>
+              <button className="settings-menu-item" type="button" onClick={() => void copyText(game.fen())}>Copy FEN</button>
+              <div className="settings-menu-separator"></div>
+              <div className="settings-menu-title">Learn Settings</div>
+              <label className="settings-select-row">
+                <span>Training Arrows</span>
+                <select value={trainingArrows ? "on" : "off"} onChange={(event) => persistBoolean("chessengineered_training_arrows", event.target.value === "on", setTrainingArrows)}>
+                  <option value="on">On</option>
+                  <option value="off">Off</option>
+                </select>
+              </label>
+              <label className="settings-select-row">
+                <span>Learn Dialog</span>
+                <select value={showDialog ? "open" : "closed"} onChange={(event) => persistBoolean("chessengineered_show_dialog", event.target.value === "open", setShowDialog)}>
+                  <option value="open">Always Open</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </label>
+              <button className="settings-menu-item" type="button" onClick={resetProgress}>Reset Progress</button>
+            </div>
+            <span className="version-badge">v1.4.0</span>
+            <button className="toolbar-btn" id="btnHint" type="button" onClick={() => setHint(nextExpected?.from ?? null)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/>
+                <path d="M9 18h6"/>
+                <path d="M10 22h4"/>
+              </svg>
+              <span>Hint</span>
+            </button>
+          </div>
+          <div className="toolbar-group">
+            <button className="toolbar-btn mobile-mode-toggle" type="button" aria-label="Change mode" onClick={() => document.body.classList.toggle("show-mobile-modes")}>Mode</button>
+          </div>
+          <div className="toolbar-group nav-group toolbar-default-right">
+            <button className="toolbar-btn icon-only" id="btnPrev" aria-label="Previous move" type="button" onClick={handlePrev}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m15 18-6-6 6-6"/>
+              </svg>
+            </button>
+            <button className="toolbar-btn icon-only" id="btnNext" aria-label="Next move" type="button" onClick={handleNext}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m9 18 6-6-6-6"/>
+              </svg>
+            </button>
+          </div>
+          <div className="mobile-complete-controls" id="mobileCompleteControls">
+            <button className="toolbar-btn icon-only" type="button" id="btnCompleteRestart" aria-label="Restart line" onClick={() => startLine(lineIndex)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3a9 9 0 1 1-5.657 2"/>
+                <path d="M3 4.5h4v4"/>
+              </svg>
+            </button>
+            <button className="toolbar-btn complete-next-line" type="button" id="btnCompleteNext" onClick={() => startLine((lineIndex + 1) % opening.lines.length)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+              </svg>
+              <span id="completeNextLabel">Next Line</span>
+            </button>
+            <button className="toolbar-btn mobile-mode-toggle" type="button" aria-label="Change mode" onClick={() => document.body.classList.toggle("show-mobile-modes")}>Mode</button>
+          </div>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
