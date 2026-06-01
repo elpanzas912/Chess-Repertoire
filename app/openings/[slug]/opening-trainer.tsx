@@ -814,11 +814,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
               </div>
             </div>
           </div>
-
-          {/* Spacer to push instructions and mode buttons to the bottom */}
-          <div style={{ flex: 1 }} />
-
-          {/* Instruction Dialog */}
+             {/* Instruction Dialog (placed right below Mode Header) */}
           {showDialog && (
             <div className="instruction-dialog">
               <div className="coach-avatar">
@@ -834,6 +830,9 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
               </div>
             </div>
           )}
+
+          {/* Spacer to push mode buttons to the center */}
+          <div style={{ flex: 1 }} />
 
           {/* Mode Selector */}
           <div className="mode-selector">
@@ -894,7 +893,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                     <path d="M5 22h14"/>
                     <path d="M5 2h14"/>
                     <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/>
-                    <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/>
+                    <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l-4.414-4.414A2 2 0 0 0 17 6.172V2"/>
                   </svg>
                   <span className="mode-title">Time Trials</span>
                 </div>
@@ -902,8 +901,9 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
               </button>
             </div>
           </div>
-          {/* Bottom spacer to lift the selector up and keep it stable */}
-          <div style={{ height: "110px", flexShrink: 0 }} />
+
+          {/* Bottom spacer to push mode buttons to the center */}
+          <div style={{ flex: 1 }} />
         </div>
 
         {/* Bottom Toolbar */}
