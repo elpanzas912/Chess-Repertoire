@@ -3609,3 +3609,14 @@ body {
   }
 }
 
+/* Hide mode selector globally on desktop when in Drill mode */
+.mode-selector.drill-hidden {
+  display: none !important;
+}
+
+/* Force show on mobile in Drill mode when the menu is actively toggled */
+body.show-mobile-modes .mode-selector.drill-hidden {
+  display: flex !important;
+}
+
+

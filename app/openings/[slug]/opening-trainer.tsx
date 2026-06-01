@@ -1147,31 +1147,8 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
           )}
 
           {/* Spacer to push mode buttons to the center */}
-          <div className="panel-spacer" style={{ flex: 1 }} />
-
           {/* Mode Selector */}
-          {mode === "drill" ? (
-            <div className="drill-panel active" id="drillPanel">
-              <div className="drill-scoreboard">
-                <div className="drill-score-item">
-                  <span className="drill-score-label">Score</span>
-                  <span className="drill-score-value" id="drillScore">{drillScore}</span>
-                </div>
-                <div className={`drill-high-score ${drillHighScore > 0 ? "" : "locked"}`} id="drillHighScoreWrap">
-                  <span className="drill-score-label">High Score</span>
-                  <span className="drill-score-value" id="drillHighScore">{drillHighScore > 0 ? drillHighScore : "--"}</span>
-                </div>
-              </div>
-              <div className="drill-leaderboard">
-                <div className="drill-leaderboard-header">
-                  <h3>Drill Mode</h3>
-                </div>
-                <div className="drill-leaderboard-msg">Un error termina la ronda. Completa tantas líneas seguidas como puedas.</div>
-              </div>
-              <button className="btn-leave-drill" type="button" onClick={() => changeMode("learn")}>Leave Drill Mode</button>
-            </div>
-          ) : (
-          <div className="mode-selector">
+          <div className={`mode-selector ${mode === "drill" ? "drill-hidden" : ""}`}>
             {completed && mode === "learn" ? (
               <div style={{ display: "flex", gap: "12px", width: "100%" }}>
                 <button
@@ -1277,9 +1254,30 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
               </>
             )}
           </div>
-          )}
 
-          {/* Bottom spacer to push mode buttons to the center */}
+          {/* Drill Panel */}
+          {mode === "drill" && (
+            <div className="drill-panel active" id="drillPanel">
+              <div className="drill-scoreboard">
+                <div className="drill-score-item">
+                  <span className="drill-score-label">Score</span>
+                  <span className="drill-score-value" id="drillScore">{drillScore}</span>
+                </div>
+                <div className={`drill-high-score ${drillHighScore > 0 ? "" : "locked"}`} id="drillHighScoreWrap">
+                  <span className="drill-score-label">High Score</span>
+                  <span className="drill-score-value" id="drillHighScore">{drillHighScore > 0 ? drillHighScore : "--"}</span>
+                </div>
+              </div>
+              <div className="drill-leaderboard">
+                <div className="drill-leaderboard-header">
+                  <h3>Drill Mode</h3>
+                </div>
+                <div className="drill-leaderboard-msg">Un error termina la ronda. Completa tantas líneas seguidas como puedas.</div>
+              </div>
+              <button className="btn-leave-drill" type="button" onClick={() => changeMode("learn")}>Leave Drill Mode</button>
+            </div>
+          )}
+          
           <div className="panel-spacer" style={{ flex: 1 }} />
         </div>
 
