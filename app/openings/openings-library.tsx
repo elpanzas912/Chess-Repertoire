@@ -268,6 +268,14 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
   }, [openings, query, side, usage]);
 
   const totalLines = visibleOpenings.reduce((sum, [, opening]) => sum + opening.lineCount, 0);
+  const userLearnedLines = visibleOpenings.reduce((sum, [slug]) => {
+    const entry = progress[slug];
+    if (entry && Array.isArray(entry.learnedLines)) {
+      return sum + new Set(entry.learnedLines).size;
+    }
+    return sum;
+  }, 0);
+
 
   async function logout() {
     if (!supabase) return;
@@ -462,7 +470,7 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
             </div>
           </div>
           <div className="toolbar-right">
-            <strong>{visibleOpenings.length}</strong> openings · <strong>{totalLines}</strong> lines
+            <strong>{visibleOpenings.length}</strong> openings · <strong>{userLearnedLines}</strong>/<strong>{totalLines}</strong> lines
           </div>
         </div>
 
