@@ -2870,6 +2870,7 @@ body {
 @media (min-width: 801px) {
   .trainer-panel {
     position: relative !important;
+    margin-top: 28px !important;
   }
   
   .panel-content {
