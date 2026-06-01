@@ -2,6 +2,7 @@ const progressKeys = [
   "chessengineered_progress",
   "chessengineered_daily_streak_earned",
   "chessengineered_usage",
+  "chessengineered_pending_training_activity",
 ];
 
 export function clearLocalUserData() {

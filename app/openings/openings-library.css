@@ -647,10 +647,27 @@ nav, .nav {
   align-items: center;
   gap: 4px;
 }
-.nav-user,
-.nav-avatar,
-.nav-avatar-link {
+.nav-user {
   display: none;
+}
+.nav-avatar-link {
+  display: inline-flex !important;
+  text-decoration: none !important;
+}
+.nav-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #fbbf24 0%, #d4a843 100%) !important;
+  color: #121214 !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.2) !important;
+  text-transform: uppercase;
 }
 .nav-leaderboard {
   display: none;

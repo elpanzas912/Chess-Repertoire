@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Chess, type Square } from "chess.js";
 import { supabase } from "../../../lib/supabase";
+import { createEventId, recordLearnCompletion, recordTrainingActivity, resetOpeningProgress } from "../../../lib/cloud-progress";
 import { ChessboardReact } from "./chessboard-react";
 
 type Opening = {
@@ -204,6 +205,11 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionStartedAtRef = useRef(Date.now());
+  const correctMovesRef = useRef(0);
+  const incorrectMovesRef = useRef(0);
+  const completedLineRef = useRef(false);
+  const activityStartedAtRef = useRef(Date.now());
   const currentLine = opening.lines[lineIndex];
   const moves = useMemo(() => parseLine(currentLine), [currentLine]);
 
@@ -216,6 +222,43 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     setPieceSet((localStorage.getItem("chessengineered_piece_set") as PieceSet) || "staunty");
     setBoardTheme((localStorage.getItem("chessengineered_board_theme") as BoardTheme) || "green");
   }, []);
+
+  useEffect(() => {
+    if (!supabase) return;
+    const client = supabase;
+
+    const flushActivity = (force = false) => {
+      if (!force && document.visibilityState !== "visible") return;
+      const now = Date.now();
+      const durationMs = now - activityStartedAtRef.current;
+      activityStartedAtRef.current = now;
+      if (durationMs < 1000) return;
+      void recordTrainingActivity(client, slug, durationMs).catch((error) =>
+        console.warn("Unable to sync training time:", error.message),
+      );
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flushActivity(true);
+      } else {
+        activityStartedAtRef.current = Date.now();
+      }
+    };
+
+    activityStartedAtRef.current = Date.now();
+    const interval = window.setInterval(flushActivity, 10000);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    const handlePageHide = () => flushActivity(true);
+    window.addEventListener("pagehide", handlePageHide);
+
+    return () => {
+      window.clearInterval(interval);
+      flushActivity(true);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, [slug]);
 
   function persistBoolean(key: string, value: boolean, setter: (value: boolean) => void) {
     localStorage.setItem(key, String(value));
@@ -298,6 +341,34 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const updateInstruction = useCallback((chess: Chess) => {
     setInstruction(opening.descriptions[chess.fen()] ?? "Encuentra el mejor movimiento para continuar la variante.");
   }, [opening.descriptions]);
+  const completeCurrentLine = useCallback(() => {
+    if (completedLineRef.current) return;
+    completedLineRef.current = true;
+
+    saveLearnedLine(slug, currentLine);
+    setLearnedCount(getLearnedCount(slug));
+
+    if (!supabase) return;
+    const now = Date.now();
+    const activeDurationMs = now - activityStartedAtRef.current;
+    activityStartedAtRef.current = now;
+    if (activeDurationMs >= 1000) {
+      void recordTrainingActivity(supabase, slug, activeDurationMs).catch((error) =>
+        console.warn("Unable to sync training time:", error.message),
+      );
+    }
+    void recordLearnCompletion(supabase, {
+      eventId: createEventId(),
+      slug,
+      line: currentLine,
+      correctMoves: correctMovesRef.current,
+      incorrectMoves: incorrectMovesRef.current,
+      durationMs: Math.max(0, Date.now() - sessionStartedAtRef.current),
+    })
+      .then(() => setLearnedCount(getLearnedCount(slug)))
+      .catch((error) => console.warn("Unable to sync training progress:", error.message));
+  }, [currentLine, slug]);
+
   const playOpponentMoves = useCallback((source: Chess, startIndex: number, initialDelay = 0) => {
     const chess = new Chess(source.fen());
     let index = startIndex;
@@ -306,8 +377,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       const next = moves[index];
       if (!next) {
         setCompleted(true);
-        saveLearnedLine(slug, currentLine);
-        setLearnedCount(getLearnedCount(slug));
+        completeCurrentLine();
         playSound("game-end", soundsEnabled);
         return;
       }
@@ -334,10 +404,14 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     };
 
     timer.current = setTimeout(playNext, initialDelay);
-  }, [currentLine, moves, opening.playerSide, slug, soundsEnabled, updateInstruction, updateEvaluation]);
+  }, [completeCurrentLine, moves, opening.playerSide, soundsEnabled, updateInstruction, updateEvaluation]);
 
   const startLine = useCallback((index: number) => {
     if (timer.current) clearTimeout(timer.current);
+    sessionStartedAtRef.current = Date.now();
+    correctMovesRef.current = 0;
+    incorrectMovesRef.current = 0;
+    completedLineRef.current = false;
     setLineIndex(index);
     setGame(new Chess());
     setMoveIndex(0);
@@ -396,6 +470,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       setLegalTargets([]);
       setHint(null);
       if (expected.from !== from || expected.to !== to) {
+        incorrectMovesRef.current += 1;
         // Movimiento incorrecto
         const fenBefore = game.fen();
 
@@ -433,6 +508,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       if (!move) return false;
 
       const nextIndex = moveIndex + 1;
+      correctMovesRef.current += 1;
       setGame(chess);
       updateEvaluation(chess);
       setMoveIndex(nextIndex);
@@ -468,6 +544,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     setHint(null);
 
     if (expected.from !== from || expected.to !== to) {
+      incorrectMovesRef.current += 1;
       setFeedback({ square: to, type: "wrong" });
       vibrate([18, 20, 18]);
       playSound("illegal", soundsEnabled);
@@ -479,6 +556,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     const move = chess.move({ from, to, promotion: "q" });
     if (!move) return;
     const nextIndex = moveIndex + 1;
+    correctMovesRef.current += 1;
     setGame(chess);
     setMoveIndex(nextIndex);
     setLastMove({ from, to });
@@ -515,13 +593,19 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     setSettingsOpen(false);
   }
 
-  function resetProgress() {
+  async function resetProgress() {
     const progress = JSON.parse(localStorage.getItem("chessengineered_progress") ?? "{}");
     progress[slug] = {};
     localStorage.setItem("chessengineered_progress", JSON.stringify(progress));
     setLearnedCount(0);
     startLine(0);
     setSettingsOpen(false);
+    if (!supabase) return;
+    try {
+      await resetOpeningProgress(supabase, slug);
+    } catch (error: any) {
+      console.warn("Unable to reset cloud progress:", error.message);
+    }
   }
 
   const handlePrev = useCallback(() => {
@@ -554,8 +638,6 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
         setFeedback(null);
         if (nextIndex === moves.length) {
           setCompleted(true);
-          saveLearnedLine(slug, currentLine);
-          setLearnedCount(getLearnedCount(slug));
           playSound("game-end", soundsEnabled);
         }
       }
@@ -867,7 +949,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                   <option value="closed">Closed</option>
                 </select>
               </label>
-              <button className="settings-menu-item" type="button" onClick={resetProgress}>Reset Progress</button>
+              <button className="settings-menu-item" type="button" onClick={() => void resetProgress()}>Reset Progress</button>
             </div>
             <span className="version-badge">v1.4.0</span>
             <button className="toolbar-btn" id="btnHint" type="button" onClick={() => setHint(nextExpected?.from ?? null)}>
