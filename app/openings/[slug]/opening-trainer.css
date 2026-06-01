@@ -3121,19 +3121,23 @@ body {
   }
 
   .instruction-dialog {
+    position: absolute !important;
+    left: 12px !important;
+    right: 12px !important;
+    bottom: calc(60px + min(100vw, calc(100dvh - 220px))) !important;
     order: 3 !important;
     height: auto !important;
     min-height: 0 !important;
     max-height: 160px !important;
-    overflow: hidden !important;
-    padding: 0 12px !important;
+    overflow-y: auto !important;
+    padding: 0 !important;
     align-items: stretch !important;
     background: transparent !important;
     border: none !important;
-    margin-top: 8px !important;
-    margin-bottom: 0 !important;
+    margin: 0 !important;
     gap: 0 !important;
     box-shadow: none !important;
+    z-index: 50 !important;
   }
 
   .coach-avatar {
@@ -3169,7 +3173,8 @@ body {
     justify-content: flex-start !important;
     gap: 4px !important;
     padding: 0 !important;
-    margin-top: 8px !important;
+    margin-top: auto !important;
+    margin-bottom: 0 !important;
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
@@ -3581,10 +3586,9 @@ body {
   }
 
   .instruction-dialog {
-    height: auto !important;
-    min-height: 0 !important;
+    bottom: calc(54px + min(100vw, calc(100dvh - 206px))) !important;
     max-height: 96px !important;
-    margin-top: 6px !important;
+    margin: 0 !important;
   }
 
   .speech-bubble {
