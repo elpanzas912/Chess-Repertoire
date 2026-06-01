@@ -836,70 +836,90 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
           {/* Mode Selector */}
           <div className="mode-selector">
-            <button className="mode-btn active" id="modeLearn" type="button">
-              <div className="mode-btn-main">
-                <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)" }}>
-                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-                </svg>
-                <span className="mode-title">Learn</span>
-              </div>
-              <span className="mode-sub" id="learnStats">{learnedCount} lines discovered</span>
-            </button>
-
-            <button className="mode-btn" id="modePractice" type="button" onClick={() => {
-              if (learnedCount === 0) {
-                alert("Learn some lines first!");
-              } else {
-                alert("Practice mode is currently integrated into the learning sequence.");
-              }
-            }}>
-              <div className="mode-btn-main">
-                <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)" }}>
-                  <circle cx="12" cy="12" r="10"/>
-                  <circle cx="12" cy="12" r="6"/>
-                  <circle cx="12" cy="12" r="2"/>
-                </svg>
-                <span className="mode-title">Practice</span>
-              </div>
-              <span className="mode-sub" id="practiceStats">0/{opening.lines.length} lines perfected</span>
-            </button>
-
-            <button className="mode-btn locked" id="modePuzzles" disabled type="button">
-              <div className="mode-btn-main">
-                <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)", opacity: 0.5 }}>
-                  <path d="M19.439 7.85c-.049.322.059.648.289.878l1.378 1.378a1 1 0 0 1 .289.878c0 .486-.166.893-.457 1.181l-1.99 1.99a1 1 0 0 1-.878.289 1 1 0 0 1-.878-.289l-1.378-1.378a1.05 1.05 0 0 0-.878-.289c-.322 0-.649.059-.878.289l-1.378 1.378a1 1 0 0 1-.878.289 1 1 0 0 1-.878-.289l-1.99-1.99a1 1 0 0 1-.289-.878c0-.486.166-.893.457-1.181l1.378-1.378a1.05 1.05 0 0 0 .289-.878c0-.322-.059-.649-.289-.878l-1.378-1.378a1 1 0 0 1-.289-.878c0-.486.166-.893.457-1.181l1.99-1.99a1 1 0 0 1 .878-.289c.322 0 .649.059.878.289l1.378 1.378a1.05 1.05 0 0 0 .878.289c.322 0 .649-.059.878-.289l1.378-1.378a1 1 0 0 1 .878-.289 1 1 0 0 1 .878.289l1.99 1.99a1 1 0 0 1 .289.878c0 .486-.166.893-.457 1.181l-1.378 1.378a1.05 1.05 0 0 0-.289.878z"/>
-                  <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
-                </svg>
-                <span className="mode-title">Puzzles</span>
-              </div>
-              <span className="mode-sub">Solve puzzles, win ELO</span>
-            </button>
-
-            <div className="mode-grid">
-              <button className="mode-btn small locked" id="modeDrill" disabled type="button">
-                <div className="mode-btn-main">
-                  <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)", opacity: 0.5 }}>
-                    <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
-                  </svg>
-                  <span className="mode-title">Drill</span>
-                </div>
-                <span className="mode-sub">Max your streak</span>
+            {completed ? (
+              <button
+                className="btn-next-line"
+                onClick={() => startLine((lineIndex + 1) % opening.lines.length)}
+                style={{
+                  width: "100%",
+                  height: "56px",
+                  fontSize: "1.1rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer"
+                }}
+              >
+                Next Line
               </button>
+            ) : (
+              <>
+                <button className="mode-btn active" id="modeLearn" type="button">
+                  <div className="mode-btn-main">
+                    <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)" }}>
+                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                    </svg>
+                    <span className="mode-title">Learn</span>
+                  </div>
+                  <span className="mode-sub" id="learnStats">{learnedCount} lines discovered</span>
+                </button>
 
-              <button className="mode-btn small locked" id="modeTime" disabled type="button">
-                <div className="mode-btn-main">
-                  <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)", opacity: 0.5 }}>
-                    <path d="M5 22h14"/>
-                    <path d="M5 2h14"/>
-                    <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/>
-                    <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l-4.414-4.414A2 2 0 0 0 17 6.172V2"/>
-                  </svg>
-                  <span className="mode-title">Time Trials</span>
+                <button className="mode-btn" id="modePractice" type="button" onClick={() => {
+                  if (learnedCount === 0) {
+                    alert("Learn some lines first!");
+                  } else {
+                    alert("Practice mode is currently integrated into the learning sequence.");
+                  }
+                }}>
+                  <div className="mode-btn-main">
+                    <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)" }}>
+                      <circle cx="12" cy="12" r="10"/>
+                      <circle cx="12" cy="12" r="6"/>
+                      <circle cx="12" cy="12" r="2"/>
+                    </svg>
+                    <span className="mode-title">Practice</span>
+                  </div>
+                  <span className="mode-sub" id="practiceStats">0/{opening.lines.length} lines perfected</span>
+                </button>
+
+                <button className="mode-btn locked" id="modePuzzles" disabled type="button">
+                  <div className="mode-btn-main">
+                    <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)", opacity: 0.5 }}>
+                      <path d="M19.439 7.85c-.049.322.059.648.289.878l1.378 1.378a1 1 0 0 1 .289.878c0 .486-.166.893-.457 1.181l-1.99 1.99a1 1 0 0 1-.878.289 1 1 0 0 1-.878-.289l-1.378-1.378a1.05 1.05 0 0 0-.878-.289c-.322 0-.649.059-.878.289l-1.378 1.378a1 1 0 0 1-.878.289 1 1 0 0 1-.878-.289l-1.99-1.99a1 1 0 0 1-.289-.878c0-.486.166-.893.457-1.181l1.378-1.378a1.05 1.05 0 0 0 .289-.878c0-.322-.059-.649-.289-.878l-1.378-1.378a1 1 0 0 1-.289-.878c0-.486.166-.893.457-1.181l1.99-1.99a1 1 0 0 1 .878-.289c.322 0 .649.059.878.289l1.378 1.378a1.05 1.05 0 0 0 .878.289c.322 0 .649-.059.878-.289l1.378-1.378a1 1 0 0 1 .878-.289 1 1 0 0 1 .878.289l1.99 1.99a1 1 0 0 1 .289.878c0 .486-.166.893-.457 1.181l-1.378 1.378a1.05 1.05 0 0 0-.289.878z"/>
+                      <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+                    </svg>
+                    <span className="mode-title">Puzzles</span>
+                  </div>
+                  <span className="mode-sub">Solve puzzles, win ELO</span>
+                </button>
+
+                <div className="mode-grid">
+                  <button className="mode-btn small locked" id="modeDrill" disabled type="button">
+                    <div className="mode-btn-main">
+                      <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)", opacity: 0.5 }}>
+                        <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+                      </svg>
+                      <span className="mode-title">Drill</span>
+                    </div>
+                    <span className="mode-sub">Max your streak</span>
+                  </button>
+
+                  <button className="mode-btn small locked" id="modeTime" disabled type="button">
+                    <div className="mode-btn-main">
+                      <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)", opacity: 0.5 }}>
+                        <path d="M5 22h14"/>
+                        <path d="M5 2h14"/>
+                        <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/>
+                        <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l-4.414-4.414A2 2 0 0 0 17 6.172V2"/>
+                      </svg>
+                      <span className="mode-title">Time Trials</span>
+                    </div>
+                    <span className="mode-sub">Race the clock</span>
+                  </button>
                 </div>
-                <span className="mode-sub">Race the clock</span>
-              </button>
-            </div>
+              </>
+            )}
           </div>
 
           {/* Bottom spacer to push mode buttons to the center */}
