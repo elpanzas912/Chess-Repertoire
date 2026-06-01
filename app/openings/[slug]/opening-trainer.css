@@ -3124,7 +3124,7 @@ body {
     position: absolute !important;
     left: 12px !important;
     right: 12px !important;
-    bottom: calc(60px + min(100vw, calc(100dvh - 220px))) !important;
+    bottom: calc(78px + min(100vw, calc(100dvh - 220px))) !important;
     order: 3 !important;
     height: auto !important;
     min-height: 0 !important;
@@ -3586,7 +3586,7 @@ body {
   }
 
   .instruction-dialog {
-    bottom: calc(54px + min(100vw, calc(100dvh - 206px))) !important;
+    bottom: calc(72px + min(100vw, calc(100dvh - 206px))) !important;
     max-height: 96px !important;
     margin: 0 !important;
   }
