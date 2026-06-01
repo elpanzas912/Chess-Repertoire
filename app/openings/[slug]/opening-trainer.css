@@ -2567,22 +2567,26 @@ body {
 
 /* ── AI Coach Assistant Speech Bubble ── */
 .instruction-dialog {
-  background: rgba(255, 255, 255, 0.02) !important;
-  border: 1px solid rgba(255, 255, 255, 0.05) !important;
-  border-radius: 16px !important;
-  padding: 16px !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
   gap: var(--space-md) !important;
-  transition: all 0.3s var(--ease-out) !important;
-  height: 120px !important;
-  min-height: 120px !important;
-  max-height: 120px !important;
-  overflow: hidden !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  flex-shrink: 0 !important;
+  box-shadow: none !important;
 }
 
 .instruction-dialog:hover {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border-color: rgba(255, 255, 255, 0.09) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .coach-avatar {
@@ -2598,14 +2602,15 @@ body {
 
 .speech-bubble {
   width: 100% !important;
-  height: 100% !important;
-  max-height: 100% !important;
-  overflow-y: auto !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
   padding: 10px 14px !important;
   background: #ffffff !important;
   border: 1px solid rgba(24, 24, 27, 0.12) !important;
   border-radius: var(--radius-md) !important;
   color: #18181b !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
 }
 
 .speech-bubble .instruction-text {

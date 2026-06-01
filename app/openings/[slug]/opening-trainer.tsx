@@ -815,6 +815,9 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
             </div>
           </div>
 
+          {/* Spacer to push instructions and mode buttons to the bottom */}
+          <div style={{ flex: 1 }} />
+
           {/* Instruction Dialog */}
           {showDialog && (
             <div className="instruction-dialog">
