@@ -727,7 +727,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
               orientation={opening.playerSide}
               pieceSet={pieceSet}
               boardTheme={boardTheme}
-              inputEnabled={!completed}
+              inputEnabled={!completed && moves[moveIndex] !== undefined && (moves[moveIndex].color === opening.playerSide)}
               inputColor={opening.playerSide}
               onMoveAttempt={handleMoveAttempt}
               lastMove={lastMove}
