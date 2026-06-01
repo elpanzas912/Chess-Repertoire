@@ -2870,7 +2870,7 @@ body {
 @media (min-width: 801px) {
   .trainer-panel {
     position: relative !important;
-    margin-top: 28px !important;
+    margin-top: 0 !important;
   }
   
   .panel-content {
@@ -2889,5 +2889,31 @@ body {
     margin: 0 !important;
     padding: 0 !important;
     z-index: 10 !important;
+  }
+
+  .board-area {
+    height: calc(min(960px, calc(100vh - 140px), calc(100vw - 480px)) + 34px) !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    position: relative !important;
+  }
+
+  .line-progress-wrap {
+    position: absolute !important;
+    bottom: calc(100% + 12px) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 100% !important;
+    max-width: min(960px, calc(100vh - 140px), calc(100vw - 480px)) !important;
+  }
+
+  .completion-overlay {
+    position: absolute !important;
+    bottom: 24px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: auto !important;
+    min-height: 0 !important;
+    z-index: 20 !important;
   }
 }
