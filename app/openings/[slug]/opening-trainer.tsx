@@ -193,6 +193,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const [pieceSet, setPieceSet] = useState<PieceSet>("staunty");
   const [boardTheme, setBoardTheme] = useState<BoardTheme>("green");
   const [learnedCount, setLearnedCount] = useState(() => getLearnedCount(slug));
+  const [boardLocked, setBoardLocked] = useState(true);
   
   // Estados y referencias para la barra de evaluación asíncrona Stockfish
   const [evalScore, setEvalScore] = useState<number>(0);
@@ -379,6 +380,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
         setCompleted(true);
         completeCurrentLine();
         playSound("game-end", soundsEnabled);
+        setBoardLocked(true);
         return;
       }
       if (next.color === opening.playerSide) {
@@ -387,6 +389,9 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
         updateEvaluation(nextChess);
         setMoveIndex(index);
         updateInstruction(chess);
+        setTimeout(() => {
+          setBoardLocked(false);
+        }, 250);
         return;
       }
 
@@ -403,6 +408,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       timer.current = setTimeout(playNext, 340);
     };
 
+    setBoardLocked(true);
     timer.current = setTimeout(playNext, initialDelay);
   }, [completeCurrentLine, moves, opening.playerSide, soundsEnabled, updateInstruction, updateEvaluation]);
 
@@ -421,6 +427,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     setLastMove(null);
     setHint(null);
     setCompleted(false);
+    setBoardLocked(true);
     setRestartVersion((version) => version + 1);
   }, []);
 
@@ -430,6 +437,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     updateEvaluation(chess);
     setMoveIndex(0);
     setCompleted(false);
+    setBoardLocked(true);
     playSound("game-start", soundsEnabled);
     playOpponentMoves(chess, 0, 240);
     return () => {
@@ -440,6 +448,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   }, [lineIndex, playOpponentMoves, restartVersion, updateEvaluation]);
 
   function chooseSquare(square: Square) {
+    if (boardLocked) return;
     if (!selected) {
       const piece = game.get(square);
       if (!piece || piece.color !== opening.playerSide) return;
@@ -459,7 +468,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
   const handleMoveAttempt = useCallback(
     (from: Square, to: Square) => {
-      if (completed) return false;
+      if (completed || boardLocked) return false;
       const expected = moves[moveIndex];
       if (!expected || expected.color !== opening.playerSide) return false;
 
@@ -469,6 +478,8 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       setSelected(null);
       setLegalTargets([]);
       setHint(null);
+      setBoardLocked(true);
+
       if (expected.from !== from || expected.to !== to) {
         incorrectMovesRef.current += 1;
         // Movimiento incorrecto
@@ -497,6 +508,9 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
           setGame(originalChess);
           updateEvaluation(originalChess);
           setLastMove(null);
+          setTimeout(() => {
+            setBoardLocked(false);
+          }, 250);
         }, 500);
 
         return true; // Permite soltar la pieza en la casilla incorrecta para simular el feedback visual
@@ -505,7 +519,10 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       // Movimiento correcto
       const chess = new Chess(game.fen());
       const move = chess.move({ from, to, promotion: "q" });
-      if (!move) return false;
+      if (!move) {
+        setBoardLocked(false);
+        return false;
+      }
 
       const nextIndex = moveIndex + 1;
       correctMovesRef.current += 1;
@@ -525,11 +542,11 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
       return true; // Pieza se queda
     },
-    [completed, moves, moveIndex, opening.playerSide, game, soundsEnabled, vibrate, playOpponentMoves, updateInstruction, updateEvaluation]
+    [completed, boardLocked, moves, moveIndex, opening.playerSide, game, soundsEnabled, vibrate, playOpponentMoves, updateInstruction, updateEvaluation]
   );
 
   function attemptMove(from: Square, to: Square) {
-    if (completed) return;
+    if (boardLocked || completed) return;
     const expected = moves[moveIndex];
     if (!expected || expected.color !== opening.playerSide) return;
     const legal = game.moves({ square: from, verbose: true }).find((move) => move.to === to);
@@ -542,19 +559,26 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     setSelected(null);
     setLegalTargets([]);
     setHint(null);
+    setBoardLocked(true);
 
     if (expected.from !== from || expected.to !== to) {
       incorrectMovesRef.current += 1;
       setFeedback({ square: to, type: "wrong" });
       vibrate([18, 20, 18]);
       playSound("illegal", soundsEnabled);
-      timer.current = setTimeout(() => setFeedback(null), 520);
+      timer.current = setTimeout(() => {
+        setFeedback(null);
+        setBoardLocked(false);
+      }, 520);
       return;
     }
 
     const chess = new Chess(game.fen());
     const move = chess.move({ from, to, promotion: "q" });
-    if (!move) return;
+    if (!move) {
+      setBoardLocked(false);
+      return;
+    }
     const nextIndex = moveIndex + 1;
     correctMovesRef.current += 1;
     setGame(chess);
@@ -621,6 +645,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       setLastMove(prevIndex > 0 ? { from: moves[prevIndex - 1].from, to: moves[prevIndex - 1].to } : null);
       setFeedback(null);
       setCompleted(false);
+      setBoardLocked(false);
     }
   }, [moveIndex, moves, updateEvaluation]);
 
@@ -636,13 +661,14 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
         setMoveIndex(nextIndex);
         setLastMove({ from: move.from, to: move.to });
         setFeedback(null);
+        setBoardLocked(false);
         if (nextIndex === moves.length) {
           setCompleted(true);
           playSound("game-end", soundsEnabled);
         }
       }
     }
-  }, [moveIndex, moves, game, slug, soundsEnabled, updateEvaluation]);
+  }, [moveIndex, moves, game, soundsEnabled, updateEvaluation]);
 
   useEffect(() => {
     document.body.classList.add("trainer-active");
@@ -727,7 +753,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
               orientation={opening.playerSide}
               pieceSet={pieceSet}
               boardTheme={boardTheme}
-              inputEnabled={!completed && moves[moveIndex] !== undefined && (moves[moveIndex].color === opening.playerSide)}
+              inputEnabled={!completed && !boardLocked && moves[moveIndex] !== undefined && (moves[moveIndex].color === opening.playerSide)}
               inputColor={opening.playerSide}
               onMoveAttempt={handleMoveAttempt}
               lastMove={lastMove}
