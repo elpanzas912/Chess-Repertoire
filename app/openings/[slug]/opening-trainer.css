@@ -2463,22 +2463,23 @@ body {
 
 /* ── Interactive Progress Bar ── */
 .line-progress-track {
-  height: 6px !important;
-  background: rgba(255, 255, 255, 0.05) !important;
-  border-radius: 10px !important;
-  border: 1px solid rgba(255, 255, 255, 0.02);
+  height: 14px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
 .line-progress-fill {
-  background: linear-gradient(90deg, #d4a843 0%, #fbbf24 100%) !important;
-  box-shadow: 0 0 10px rgba(251, 191, 36, 0.35) !important;
-  border-radius: 10px !important;
+  background: linear-gradient(90deg, #7c3aed 0%, #8b5cf6 50%, #c084fc 100%) !important;
+  box-shadow: 0 0 14px rgba(139, 92, 246, 0.5) !important;
+  border-radius: 8px !important;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 .line-progress-label .move-num {
   font-weight: 600 !important;
   letter-spacing: 0.02em;
-  color: var(--color-accent) !important;
+  color: #a78bfa !important;
 }
 
 .line-progress-label .move-name {
