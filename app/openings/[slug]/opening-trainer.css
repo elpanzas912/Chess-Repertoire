@@ -2880,7 +2880,7 @@ body {
     position: absolute !important;
     left: 20px !important;
     right: 20px !important;
-    top: 54% !important;
+    top: 60% !important;
     transform: translateY(-50%) !important;
     display: flex !important;
     flex-direction: column !important;
@@ -2888,10 +2888,5 @@ body {
     margin: 0 !important;
     padding: 0 !important;
     z-index: 10 !important;
-  }
-  
-  .speech-bubble {
-    max-height: 110px !important;
-    overflow-y: auto !important;
   }
 }
