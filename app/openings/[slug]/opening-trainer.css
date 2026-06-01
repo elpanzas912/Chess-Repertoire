@@ -3548,21 +3548,27 @@ body {
   body.line-complete-mobile .mobile-complete-controls {
     display: flex !important;
   }
-
   .complete-next-line {
     flex: 1 1 auto !important;
     min-width: 0 !important;
-    border-color: var(--color-accent) !important;
-    background: var(--color-accent) !important;
-    color: var(--color-accent-ink) !important;
+    background: #fbbf24 !important;
+    color: #121214 !important;
+    border: none !important;
+    border-radius: 10px !important;
     font-weight: 700 !important;
+    box-shadow: 0 4px 16px rgba(251, 191, 36, 0.25) !important;
+    transition: all 0.25s var(--ease-out) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
   }
 
   .complete-next-line:hover {
-    background: var(--color-accent-hover) !important;
-    border-color: var(--color-accent-hover) !important;
+    background: #f59e0b !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 6px 18px rgba(251, 191, 36, 0.35) !important;
   }
-
   .feedback {
     bottom: 48px !important;
     max-width: calc(100vw - 24px) !important;
