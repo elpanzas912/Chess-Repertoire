@@ -1451,8 +1451,7 @@ h2 {
 
 .cm-chessboard .square.last-move-from,
 .cm-chessboard .square.last-move-to {
-  fill: #b58132 !important; /* Gold de la paleta */
-  opacity: 0.35;
+  fill: oklch(85% 0.06 100 / 0.55) !important;
 }
 
 .cm-chessboard-draggable-piece {
