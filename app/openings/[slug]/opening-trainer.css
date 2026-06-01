@@ -680,6 +680,7 @@ body { overflow: hidden; }
   border-radius: var(--radius-md);
   cursor: pointer;
   position: relative;
+  z-index: var(--z-raised);
   transition: border-color var(--dur-short), background var(--dur-short);
   flex-shrink: 0;
 }
