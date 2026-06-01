@@ -106,11 +106,12 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
       ]);
 
       const paid =
-        subscription !== null &&
+        !!subscription &&
         ["active", "trialing"].includes(subscription.status) &&
+        subscription.current_period_end &&
         new Date(subscription.current_period_end).getTime() > Date.now();
 
-      setHasSubscription(paid);
+      setHasSubscription(!!paid);
       setFreeOpening(profile?.free_opening_slug ?? null);
     };
 
@@ -119,7 +120,11 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
       if (event === "SIGNED_OUT") clearLocalUserData();
       void loadAccount();
     });
-    return () => data.subscription.unsubscribe();
+    return () => {
+      if (data && data.subscription) {
+        data.subscription.unsubscribe();
+      }
+    };
   }, []);
 
   const visibleOpenings = useMemo(() => {
