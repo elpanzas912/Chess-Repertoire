@@ -26,6 +26,7 @@ type BoardTheme = "green" | "white-violet" | "white-blue" | "blue" | "brown" | "
 
 const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
 const ranks = ["8", "7", "6", "5", "4", "3", "2", "1"];
+const PRACTICE_TRANSITION_DELAY_MS = 800;
 
 function parseLine(pgn: string): CourseMove[] {
   const chess = new Chess();
@@ -269,6 +270,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const completedLineRef = useRef(false);
   const activityStartedAtRef = useRef(Date.now());
   const activityModeRef = useRef<TrainingMode>("learn");
+  const startNextPracticeLineRef = useRef<() => void>(() => undefined);
   const currentLine = opening.lines[lineIndex];
   const moves = useMemo(() => parseLine(currentLine), [currentLine]);
   const learnedCount = learnedLines.size;
@@ -497,8 +499,12 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       if (!next) {
         setCompleted(true);
         completeCurrentLine();
-        playSound("game-end", soundsEnabled);
         setBoardLocked(true);
+        if (mode === "practice") {
+          timer.current = setTimeout(() => startNextPracticeLineRef.current(), PRACTICE_TRANSITION_DELAY_MS);
+          return;
+        }
+        playSound("game-end", soundsEnabled);
         playCompletionConfetti();
         return;
       }
@@ -530,7 +536,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
     setBoardLocked(true);
     timer.current = setTimeout(playNext, initialDelay);
-  }, [completeCurrentLine, moves, opening.playerSide, soundsEnabled, updateInstruction, updateEvaluation, playCompletionConfetti]);
+  }, [completeCurrentLine, mode, moves, opening.playerSide, soundsEnabled, updateInstruction, updateEvaluation, playCompletionConfetti]);
 
   const startLine = useCallback((index: number, nextMode = mode) => {
     const nextIndex = index >= 0 && index < opening.lines.length ? index : 0;
@@ -592,12 +598,10 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   }, [lineIndex, playOpponentMoves, restartVersion, updateEvaluation]);
 
   useEffect(() => {
-    if (!completed || mode !== "practice") return;
-    timer.current = setTimeout(() => startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex)), 800);
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
+    startNextPracticeLineRef.current = () => {
+      startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex), "practice");
     };
-  }, [completed, learnedLines, lineIndex, mode, opening.lines, startLine]);
+  }, [learnedLines, lineIndex, opening.lines, startLine]);
 
   function chooseSquare(square: Square) {
     if (boardLocked) return;
