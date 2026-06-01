@@ -389,9 +389,10 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
         updateEvaluation(nextChess);
         setMoveIndex(index);
         updateInstruction(chess);
+        const unlockDelay = index > startIndex ? 50 : 250;
         setTimeout(() => {
           setBoardLocked(false);
-        }, 250);
+        }, unlockDelay);
         return;
       }
 
