@@ -336,7 +336,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
         setEvalLoading(false);
         setEvalFallback(true);
       }
-    }, 120); // Debounce de 120ms
+    }, 10); // Debounce de 10ms
   }, []);
 
   const updateInstruction = useCallback((chess: Chess) => {
