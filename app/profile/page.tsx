@@ -12,7 +12,7 @@ import "./profile.css";
 import "../openings/openings-library.css"; // Share core token imports
 
 type PieceSet = "staunty" | "maestro" | "standard";
-type BoardTheme = "green" | "white-violet" | "white-blue" | "blue" | "brown" | "classic" | "black-and-white";
+type BoardTheme = "green" | "white-violet" | "white-blue" | "blue" | "brown" | "classic" | "black-and-white" | "chessboard-js" | "default";
 
 type AccuracyBucket = {
   learn: { correct: number; incorrect: number };
@@ -85,12 +85,8 @@ export default function ProfilePage() {
       
       let localTheme = localStorage.getItem("chessengineered_board_theme") || localStorage.getItem("chessengineered_boardTheme") || "green";
       if (localTheme === "brown") localTheme = "chessboard-js";
-      // Map legacy names
-      if (localTheme === "default" || localTheme === "chessboard-js") {
-        setBoardTheme("classic" as any);
-      } else {
-        setBoardTheme(localTheme as BoardTheme);
-      }
+      if (localTheme === "classic") localTheme = "default";
+      setBoardTheme(localTheme as BoardTheme);
       
       setPieceSet((localStorage.getItem("chessengineered_piece_set") || "staunty") as PieceSet);
       setSoundEnabled(localStorage.getItem("chessengineered_sound") !== "false");
@@ -218,6 +214,7 @@ export default function ProfilePage() {
     }
   }
 
+  // Toggle helpers
   function saveSetting(key: "sound" | "hints", value: boolean) {
     if (key === "sound") {
       setSoundEnabled(value);
@@ -235,7 +232,7 @@ export default function ProfilePage() {
     router.replace("/login");
   }
 
-  // --- STATS DERIVATION ---
+  // --- STATS ---
   const stats = useMemo(() => {
     const openingsPracticed = Object.keys(usage).length;
     let linesLearned = 0;
@@ -341,13 +338,15 @@ export default function ProfilePage() {
 
     const monthLabels = [];
     let previousMonth = -1;
+    let lastLabelWeek = -99;
     for (let w = 0; w < weeks; w++) {
       const weekDate = new Date(startDate);
       weekDate.setDate(startDate.getDate() + w * days);
       const month = weekDate.getMonth();
-      if (w === 0 || month !== previousMonth) {
+      if (w === 0 || (month !== previousMonth && (w - lastLabelWeek >= 4))) {
         const label = weekDate.toLocaleDateString("en-US", { month: "short" });
         monthLabels.push({ label, col: w + 1 });
+        lastLabelWeek = w;
       }
       previousMonth = month;
     }
@@ -389,7 +388,6 @@ export default function ProfilePage() {
     const lines: string[] = [];
     if (accuracyOpening !== "all" && accuracy.openings[accuracyOpening]?.lines) {
       const rawLines = Object.keys(accuracy.openings[accuracyOpening].lines);
-      // Sort lines according to catalog indices
       const catalogLines = (catalog.openings as any)[accuracyOpening]?.lines || [];
       lines.push(
         ...rawLines.sort((a, b) => {
@@ -419,10 +417,10 @@ export default function ProfilePage() {
 
     if (!daily) return null;
 
-    // Get 14 recent dates
+    // Zen Accuracy Chart has 7 recent dates
     const dates = [];
     const today = new Date();
-    for (let i = 13; i >= 0; i--) {
+    for (let i = 6; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(today.getDate() - i);
       dates.push(getLocalDateKey(date));
@@ -499,8 +497,14 @@ export default function ProfilePage() {
 
   return (
     <div className="app-shell" style={{ position: "relative" }}>
+      {/* Ambient background layers */}
+      <div className="bg-glows" aria-hidden="true">
+        <div className="glow glow-1"></div>
+        <div className="glow glow-2"></div>
+      </div>
+
       {/* NAV */}
-      <nav>
+      <nav className="nav">
         <div className="nav-shell">
           <Link href="/openings" className="nav-logo" aria-label="ChessEngineered home">
             <span className="nav-logo-mark" aria-hidden="true">
@@ -583,388 +587,393 @@ export default function ProfilePage() {
         </div>
       </nav>
 
-      {/* BODY CONTENT */}
-      <div className="profile-wrap">
-        {/* Profile Header */}
-        <div className="profile-header">
-          <div className="profile-avatar">{avatarLetter}</div>
-          <div className="profile-info">
-            <h1 className="profile-name">{username}</h1>
-            <p className="profile-email">{sessionEmail}</p>
-            <p className="profile-meta">Member since <span>{userJoined}</span></p>
+      {/* ZEN CONTAINER */}
+      <div className="zen-container">
+        {/* HERO SEGMENT */}
+        <header className="zen-hero">
+          <div className="zen-identity">
+            <div className="profile-avatar">{avatarLetter}</div>
+            <div className="zen-identity-text">
+              <h1 className="zen-name">{username}</h1>
+              <p className="zen-email">{sessionEmail}</p>
+              <p className="zen-joined">Joined <span>{userJoined}</span></p>
+            </div>
           </div>
-          {!hasSubscription && (
-            <Link href="/plans" className="nav-primary-link" style={{ flexShrink: 0 }}>
-              Upgrade to Unlimited
-            </Link>
-          )}
-        </div>
 
-        {/* Subscription Card */}
-        <div className="profile-card">
-          <h2 className="card-title">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-            Subscription
-          </h2>
-          <div className="subscription-status">
-            {hasSubscription ? (
-              <>
+          {/* Tier Info */}
+          <div className="zen-tier-hub">
+            <div className="subscription-status">
+              {hasSubscription ? (
                 <span className="status-badge status-active">Unlimited Pass</span>
-                <span className="status-text">Active until {subscriptionEnd}</span>
-              </>
-            ) : (
-              <>
-                <span className="status-badge status-free">Free</span>
-                <span className="status-text">1 opening unlocked</span>
-              </>
-            )}
-          </div>
-          <p className="subscription-desc">
-            {hasSubscription
-              ? "You have full access to all openings and features."
-              : "Upgrade to unlock all 30+ openings and sync across devices."}
-          </p>
-          <div className="subscription-actions">
+              ) : (
+                <span className="status-badge status-free">Free Tier</span>
+              )}
+            </div>
+            <p className="subscription-desc">
+              {hasSubscription
+                ? "You have full access to all openings and features."
+                : "Unlock all 30+ openings."}
+            </p>
             {hasSubscription ? (
-              <a href="https://billing.stripe.com/p/login/test" className="nav-primary-link" style={{ background: "var(--color-paper-3)", border: "1px solid var(--color-rule)", color: "var(--color-ink)" }}>
-                Manage Subscription
+              <a href="https://billing.stripe.com/p/login/test" className="zen-link-btn">
+                Manage pass →
               </a>
             ) : (
-              <Link href="/plans" className="nav-primary-link">
-                Upgrade — $11.99/year
+              <Link href="/plans" className="zen-link-btn">
+                Upgrade pass →
               </Link>
             )}
           </div>
-        </div>
+        </header>
 
-        {/* Stats Grid */}
-        <div className="stats-grid">
-          <div className="stat-box">
-            <span className="stat-value">{stats.openingsPracticed}</span>
-            <span className="stat-label">Openings practiced</span>
+        {/* ASYMMETRICAL STATS GRID */}
+        <section className="zen-stats-section">
+          <div className="zen-stat-metric main-metric">
+            <div className="zen-metric-wrap">
+              <span className="zen-stat-num">{streak}</span>
+              <span className="zen-stat-label">Day Streak 🔥</span>
+            </div>
           </div>
-          <div className="stat-box">
-            <span className="stat-value">{stats.linesLearned}</span>
-            <span className="stat-label">Lines learned</span>
+          <div className="zen-stats-subgrid">
+            <div className="zen-stat-metric">
+              <span className="zen-stat-num">{stats.openingsPracticed}</span>
+              <span className="zen-stat-label">Openings practiced</span>
+            </div>
+            <div className="zen-stat-metric">
+              <span className="zen-stat-num">{stats.linesLearned}</span>
+              <span className="zen-stat-label">Lines learned</span>
+            </div>
+            <div className="zen-stat-metric">
+              <span className="zen-stat-num">{formatDuration(stats.totalTimeMs)}</span>
+              <span className="zen-stat-label">Time trained</span>
+            </div>
           </div>
-          <div className="stat-box">
-            <span className="stat-value">{streak}</span>
-            <span className="stat-label">Day streak</span>
-          </div>
-          <div className="stat-box">
-            <span className="stat-value">{formatDuration(stats.totalTimeMs)}</span>
-            <span className="stat-label">Time trained</span>
-          </div>
-        </div>
+        </section>
 
-        {/* Training Time */}
-        <div className="profile-card training-time-card">
-          <h2 className="card-title">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
-            </svg>
-            Training time
-          </h2>
-          <div className="training-time-list">
-            <div className="training-time-row">
-              <span>Learn</span>
-              <strong>{formatDuration(stats.normalizedTime.learn)}</strong>
-            </div>
-            <div className="training-time-row">
-              <span>Practice</span>
-              <strong>{formatDuration(stats.normalizedTime.practice)}</strong>
-            </div>
-            <div className="training-time-row">
-              <span>Drill</span>
-              <strong>{formatDuration(stats.normalizedTime.drill)}</strong>
-            </div>
-            <div className="training-time-row">
-              <span>Time Trials</span>
-              <strong>{formatDuration(stats.normalizedTime.time)}</strong>
-            </div>
-            <div className="training-time-row">
-              <span>Puzzles</span>
-              <strong>{formatDuration(stats.normalizedTime.puzzle)}</strong>
-            </div>
-          </div>
-        </div>
-
-        {/* Accuracy Chart */}
-        {accuracyChartPoints && (
-          <div className="profile-card accuracy-card">
-            <h2 className="card-title">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 3v18h18"/>
-                <path d="m19 9-5 5-4-4-4 4"/>
-              </svg>
-              Accuracy over time
-            </h2>
-            <div className="accuracy-controls">
-              <label>
-                <span>Mode</span>
-                <select
-                  value={accuracyMode}
-                  onChange={(e) => setAccuracyMode(e.target.value as any)}
-                >
-                  <option value="all">All</option>
-                  <option value="learn">Learn</option>
-                  <option value="practice">Practice</option>
-                </select>
-              </label>
-              {accuracyFilterOptions && (
-                <>
-                  <label>
-                    <span>Opening</span>
-                    <select
-                      value={accuracyOpening}
-                      onChange={(e) => {
-                        setAccuracyOpening(e.target.value);
-                        setAccuracyLine("all");
-                      }}
-                    >
-                      <option value="all">All openings</option>
-                      {accuracyFilterOptions.openings.map((slug) => (
-                        <option value={slug} key={slug}>
-                          {(catalog.openings as any)[slug]?.displayName || slug}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span>Line</span>
-                    <select
-                      value={accuracyLine}
-                      disabled={accuracyOpening === "all"}
-                      onChange={(e) => setAccuracyLine(e.target.value)}
-                    >
-                      <option value="all">All lines</option>
-                      {accuracyFilterOptions.lines.map((linePgn, idx) => (
-                        <option value={linePgn} key={linePgn}>
-                          {getLineLabel(accuracyOpening, linePgn)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </>
-              )}
-            </div>
-
-            <div className="accuracy-chart">
-              <svg viewBox="0 0 560 180" role="img" aria-label="Accuracy chart">
-                <line x1="24" y1="152" x2="536" y2="152" className="accuracy-axis" />
-                {accuracyChartPoints.points.map((pt, idx) => {
-                  const barWidth = (560 - 24 * 2 - 8 * 13) / 14;
-                  const x = 24 + idx * (barWidth + 8);
-                  const chartHeight = 128;
-                  const correctHeight = chartHeight * (pt.correct / accuracyChartPoints.maxTotal);
-                  const incorrectHeight = chartHeight * (pt.incorrect / accuracyChartPoints.maxTotal);
-                  const incorrectY = 24 + chartHeight - incorrectHeight;
-                  const correctY = incorrectY - correctHeight;
-                  return (
-                    <g key={pt.date}>
-                      <rect x={x} y={correctY} width={barWidth} height={correctHeight} rx="2" className="accuracy-correct" />
-                      <rect x={x} y={incorrectY} width={barWidth} height={incorrectHeight} rx="2" className="accuracy-incorrect" />
-                      <text x={x + barWidth / 2} y="168" textAnchor="middle">{pt.label}</text>
-                    </g>
-                  );
-                })}
-              </svg>
-            </div>
-
-            <div className="accuracy-summary">
-              <span><b>{accuracyChartPoints.totalCorrect}</b> correct</span>
-              <span><b>{accuracyChartPoints.totalIncorrect}</b> errors</span>
-              <span><b>{accuracyChartPoints.accuracyPercent}%</b> accuracy</span>
-            </div>
-          </div>
-        )}
-
-        {/* Activity Heatmap */}
-        <div className="profile-card activity-card">
-          <div className="activity-heading">
-            <span>Activity</span>
-            <div className="activity-legend" aria-label="Activity intensity">
-              <span>Less</span>
-              <i className="activity-legend-cell level-0"></i>
-              <i className="activity-legend-cell level-1"></i>
-              <i className="activity-legend-cell level-2"></i>
-              <i className="activity-legend-cell level-3"></i>
-              <i className="activity-legend-cell level-4"></i>
-              <span>More</span>
-            </div>
-          </div>
-          <div className="activity-chart">
-            <div className="activity-layout">
-              <div className="activity-weekdays" aria-hidden="true">
-                <span></span>
-                <span>Mon</span>
-                <span></span>
-                <span>Wed</span>
-                <span></span>
-                <span>Fri</span>
-                <span></span>
-              </div>
-              <div className="activity-scroll">
-                <div
-                  className="activity-month-row"
-                  style={{ gridTemplateColumns: `repeat(${heatmapData.weeks}, 1fr)` }}
-                >
-                  {heatmapData.monthLabels.map((lbl, idx) => (
-                    <span key={idx} style={{ gridColumn: lbl.col }}>{lbl.label}</span>
-                  ))}
-                </div>
-                <div
-                  className="activity-grid"
-                  style={{ gridTemplateColumns: `repeat(${heatmapData.weeks}, 1fr)` }}
-                >
-                  {heatmapData.cells.map((cell, idx) => (
-                    <div
-                      key={idx}
-                      className={`activity-cell level-${cell.intensity}`}
-                      style={{ gridArea: `${cell.d + 1} / ${cell.w + 1}` }}
-                      data-tooltip={cell.tooltip}
-                      aria-label={cell.tooltip}
-                    />
-                  ))}
-                </div>
+        {/* MAIN CANVAS: HEATMAP & ACCURACY */}
+        <section className="zen-canvas-section">
+          {/* Heatmap Activity Canvas */}
+          <div className="zen-canvas-card activity-card-v2">
+            <div className="zen-canvas-header">
+              <h2 className="zen-canvas-title">Activity Calendar</h2>
+              <div className="activity-legend" aria-label="Activity intensity">
+                <span>Less</span>
+                <i className="activity-legend-cell level-0"></i>
+                <i className="activity-legend-cell level-1"></i>
+                <i className="activity-legend-cell level-2"></i>
+                <i className="activity-legend-cell level-3"></i>
+                <i className="activity-legend-cell level-4"></i>
+                <span>More</span>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Favorite Openings */}
-        {favorites.length > 0 && (
-          <div className="profile-card">
-            <h2 className="card-title">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
-              </svg>
-              Most practiced
-            </h2>
-            <div className="favorites-list">
-              {favorites.map(([slug, data]) => (
-                <Link className="favorite-item" href={`/opening/${slug}`} key={slug}>
-                  <img src={`/boards/${slug}.png`} alt={slug} className="favorite-thumb" />
-                  <div className="favorite-info">
-                    <span className="favorite-name">
-                      {slug.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                    </span>
-                    <span className="favorite-count">{data.count || 0} sessions</span>
+            <div className="activity-chart">
+              <div className="activity-layout">
+                <div className="activity-weekdays" aria-hidden="true">
+                  <span></span>
+                  <span>Mon</span>
+                  <span></span>
+                  <span>Wed</span>
+                  <span></span>
+                  <span>Fri</span>
+                  <span></span>
+                </div>
+                <div className="activity-scroll">
+                  <div
+                    className="activity-month-row"
+                    style={{ gridTemplateColumns: `repeat(${heatmapData.weeks}, 1fr)` }}
+                  >
+                    {heatmapData.monthLabels.map((lbl, idx) => (
+                      <span key={idx} style={{ gridColumn: lbl.col }}>
+                        {lbl.label}
+                      </span>
+                    ))}
                   </div>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="m9 18 6-6-6-6"/>
-                  </svg>
-                </Link>
-              ))}
+                  <div
+                    className="activity-grid"
+                    style={{
+                      gridTemplateColumns: `repeat(${heatmapData.weeks}, 1fr)`,
+                      aspectRatio: `${heatmapData.weeks} / 7`,
+                    }}
+                  >
+                    {heatmapData.cells.map((cell, idx) => (
+                      <div
+                        key={idx}
+                        className={`activity-cell level-${cell.intensity}`}
+                        style={{ gridArea: `${cell.d + 1} / ${cell.w + 1}` }}
+                        data-tooltip={cell.tooltip}
+                        aria-label={cell.tooltip}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        )}
 
-        {/* Settings */}
-        <div className="profile-card">
-          <h2 className="card-title">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
-            Settings
-          </h2>
+          {/* Accuracy Chart Canvas */}
+          {accuracyChartPoints && (
+            <div className="zen-canvas-card accuracy-card">
+              <div className="zen-canvas-header-controls">
+                <h2 className="zen-canvas-title">Performance Accuracy</h2>
+                <div className="accuracy-controls">
+                  <select
+                    value={accuracyMode}
+                    onChange={(e) => setAccuracyMode(e.target.value as any)}
+                  >
+                    <option value="all">All modes</option>
+                    <option value="learn">Learn</option>
+                    <option value="practice">Practice</option>
+                  </select>
+                  {accuracyFilterOptions && (
+                    <>
+                      <select
+                        value={accuracyOpening}
+                        onChange={(e) => {
+                          setAccuracyOpening(e.target.value);
+                          setAccuracyLine("all");
+                        }}
+                      >
+                        <option value="all">All openings</option>
+                        {accuracyFilterOptions.openings.map((slug) => (
+                          <option value={slug} key={slug}>
+                            {(catalog.openings as any)[slug]?.displayName || slug}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={accuracyLine}
+                        disabled={accuracyOpening === "all"}
+                        onChange={(e) => setAccuracyLine(e.target.value)}
+                      >
+                        <option value="all">All lines</option>
+                        {accuracyFilterOptions.lines.map((linePgn) => (
+                          <option value={linePgn} key={linePgn}>
+                            {getLineLabel(accuracyOpening, linePgn)}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+                </div>
+              </div>
 
-          <section className="board-appearance">
-            <h3 className="settings-section-title">Board Appearance</h3>
-            <div className="appearance-row">
-              <span className="appearance-label">Board Color</span>
-              <label className="appearance-select-wrap">
-                <select
-                  className="appearance-select"
-                  value={boardTheme}
-                  onChange={(e) => saveBoardAppearance("boardTheme", e.target.value)}
-                >
-                  <option value="green">Green</option>
-                  <option value="white-violet">White Violet</option>
-                  <option value="white-blue">White Blue</option>
-                  <option value="blue">Blue</option>
-                  <option value="classic">Classic</option>
-                  <option value="black-and-white">Black & White</option>
-                </select>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-              </label>
-            </div>
-            <div className="appearance-row">
-              <span className="appearance-label">Piece Set</span>
-              <label className="appearance-select-wrap">
-                <select
-                  className="appearance-select"
-                  value={pieceSet}
-                  onChange={(e) => saveBoardAppearance("pieceSet", e.target.value)}
-                >
-                  <option value="staunty">Staunty</option>
-                  <option value="maestro">Maestro</option>
-                  <option value="standard">Standard</option>
-                </select>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-              </label>
-            </div>
-            <div className="board-preview-wrap">
-              <div className="board-preview" id="boardAppearancePreview">
-                <ChessboardReact
-                  position="rn1qkbnr/ppp1pppp/8/3p4/3P4/2N2N2/PPP1PPPP/R1BQKB1R b KQkq - 2 3"
-                  orientation="w"
-                  pieceSet={pieceSet}
-                  boardTheme={boardTheme}
-                  inputEnabled={false}
-                  inputColor="w"
-                  gameInstance={dummyGame}
-                />
-              </div>
-            </div>
-          </section>
-
-          <div className="settings-list">
-            <div className="setting-row">
-              <div className="setting-info">
-                <span className="setting-label">Sound effects</span>
-                <span className="setting-desc">Play sounds on move and capture</span>
-              </div>
-              <label className="toggle-switch">
-                <input
-                  type="checkbox"
-                  checked={soundEnabled}
-                  onChange={(e) => saveSetting("sound", e.target.checked)}
-                />
-                <span className="toggle-slider"></span>
-              </label>
-            </div>
-            <div className="setting-row">
-              <div className="setting-info">
-                <span className="setting-label">Show hints</span>
-                <span className="setting-desc">Display move hints during practice</span>
-              </div>
-              <label className="toggle-switch">
-                <input
-                  type="checkbox"
-                  checked={hintsEnabled}
-                  onChange={(e) => saveSetting("hints", e.target.checked)}
-                />
-                <span className="toggle-slider"></span>
-              </label>
-            </div>
-            <div className="setting-divider"></div>
-            <div className="setting-row setting-danger">
-              <button className="btn btn-ghost" onClick={handleLogout} style={{ display: "flex", gap: "8px", alignItems: "center", color: "var(--color-danger)", background: "transparent", border: "none", cursor: "pointer", font: "inherit" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                  <polyline points="16 17 21 12 16 7"/>
-                  <line x1="21" x2="9" y1="12" y2="12"/>
+              <div className="accuracy-chart">
+                <svg viewBox="0 0 560 180" role="img" aria-label="Accuracy chart">
+                  <line x1="24" y1="152" x2="536" y2="152" className="accuracy-axis" />
+                  {accuracyChartPoints.points.map((pt, idx) => {
+                    const barWidth = (560 - 24 * 2 - 8 * 6) / 7;
+                    const x = 24 + idx * (barWidth + 8);
+                    const chartHeight = 128;
+                    const correctHeight = chartHeight * (pt.correct / accuracyChartPoints.maxTotal);
+                    const incorrectHeight = chartHeight * (pt.incorrect / accuracyChartPoints.maxTotal);
+                    const incorrectY = 24 + chartHeight - incorrectHeight;
+                    const correctY = incorrectY - correctHeight;
+                    return (
+                      <g key={pt.date}>
+                        <rect x={x} y={correctY} width={barWidth} height={correctHeight} rx="2" className="accuracy-correct" />
+                        <rect x={x} y={incorrectY} width={barWidth} height={incorrectHeight} rx="2" className="accuracy-incorrect" />
+                        <text x={x + barWidth / 2} y="168" textAnchor="middle">{pt.label}</text>
+                      </g>
+                    );
+                  })}
                 </svg>
+              </div>
+
+              <div className="accuracy-summary">
+                <span><b>{accuracyChartPoints.totalCorrect}</b> correct</span>
+                <span><b>{accuracyChartPoints.totalIncorrect}</b> errors</span>
+                <span><b>{accuracyChartPoints.accuracyPercent}%</b> accuracy</span>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* ASYMMETRICAL BOTTOM LAYOUT */}
+        <section className="zen-bottom-section">
+          {/* Training Breakdown */}
+          <div className="zen-canvas-card training-time-card">
+            <div className="zen-canvas-header">
+              <h2 className="zen-canvas-title">Training Time Distribution</h2>
+              <span className="zen-total-time-badge">Total: {formatDuration(stats.totalTimeMs)}</span>
+            </div>
+            <div className="zen-breakdown-list">
+              <div className="zen-breakdown-row">
+                <span className="zen-breakdown-label">Learn</span>
+                <div className="zen-bar-track">
+                  <div
+                    className="zen-bar-fill"
+                    style={{
+                      width: `${stats.totalTimeMs > 0 ? (stats.normalizedTime.learn / stats.totalTimeMs) * 100 : 0}%`,
+                    }}
+                  />
+                </div>
+                <span className="zen-breakdown-val">
+                  {formatDuration(stats.normalizedTime.learn)} (
+                  {stats.totalTimeMs > 0 ? Math.round((stats.normalizedTime.learn / stats.totalTimeMs) * 100) : 0}%)
+                </span>
+              </div>
+              <div className="zen-breakdown-row">
+                <span className="zen-breakdown-label">Practice</span>
+                <div className="zen-bar-track">
+                  <div
+                    className="zen-bar-fill"
+                    style={{
+                      width: `${stats.totalTimeMs > 0 ? (stats.normalizedTime.practice / stats.totalTimeMs) * 100 : 0}%`,
+                    }}
+                  />
+                </div>
+                <span className="zen-breakdown-val">
+                  {formatDuration(stats.normalizedTime.practice)} (
+                  {stats.totalTimeMs > 0 ? Math.round((stats.normalizedTime.practice / stats.totalTimeMs) * 100) : 0}%)
+                </span>
+              </div>
+              <div className="zen-breakdown-row">
+                <span className="zen-breakdown-label">Drill</span>
+                <div className="zen-bar-track">
+                  <div
+                    className="zen-bar-fill"
+                    style={{
+                      width: `${stats.totalTimeMs > 0 ? (stats.normalizedTime.drill / stats.totalTimeMs) * 100 : 0}%`,
+                    }}
+                  />
+                </div>
+                <span className="zen-breakdown-val">
+                  {formatDuration(stats.normalizedTime.drill)} (
+                  {stats.totalTimeMs > 0 ? Math.round((stats.normalizedTime.drill / stats.totalTimeMs) * 100) : 0}%)
+                </span>
+              </div>
+              <div className="zen-breakdown-row">
+                <span className="zen-breakdown-label">Time Trials</span>
+                <div className="zen-bar-track">
+                  <div
+                    className="zen-bar-fill"
+                    style={{
+                      width: `${stats.totalTimeMs > 0 ? (stats.normalizedTime.time / stats.totalTimeMs) * 100 : 0}%`,
+                    }}
+                  />
+                </div>
+                <span className="zen-breakdown-val">
+                  {formatDuration(stats.normalizedTime.time)} (
+                  {stats.totalTimeMs > 0 ? Math.round((stats.normalizedTime.time / stats.totalTimeMs) * 100) : 0}%)
+                </span>
+              </div>
+              <div className="zen-breakdown-row">
+                <span className="zen-breakdown-label">Puzzles</span>
+                <div className="zen-bar-track">
+                  <div
+                    className="zen-bar-fill"
+                    style={{
+                      width: `${stats.totalTimeMs > 0 ? (stats.normalizedTime.puzzle / stats.totalTimeMs) * 100 : 0}%`,
+                    }}
+                  />
+                </div>
+                <span className="zen-breakdown-val">
+                  {formatDuration(stats.normalizedTime.puzzle)} (
+                  {stats.totalTimeMs > 0 ? Math.round((stats.normalizedTime.puzzle / stats.totalTimeMs) * 100) : 0}%)
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Most Practiced */}
+          {favorites.length > 0 && (
+            <div className="zen-canvas-card favorites-card-v2">
+              <h2 className="zen-canvas-title">Most Practiced</h2>
+              <div className="favorites-list">
+                {favorites.map(([slug, data]) => (
+                  <Link className="favorite-item" href={`/opening/${slug}`} key={slug}>
+                    <img src={`/boards/${slug}.png`} alt={slug} className="favorite-thumb" />
+                    <div className="favorite-info">
+                      <span className="favorite-name">
+                        {slug.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                      </span>
+                      <span className="favorite-count">{data.count || 0} sessions</span>
+                    </div>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m9 18 6-6-6-6"/>
+                    </svg>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Preferences & Configuration */}
+          <div className="zen-canvas-card zen-preferences-card">
+            <h2 className="zen-canvas-title">Board Configuration</h2>
+            <section className="board-appearance-zen">
+              <div className="board-appearance-selectors">
+                <div className="zen-pref-row">
+                  <span>Board Theme</span>
+                  <select
+                    value={boardTheme}
+                    onChange={(e) => saveBoardAppearance("boardTheme", e.target.value)}
+                  >
+                    <option value="green">Green</option>
+                    <option value="white-violet">White Violet</option>
+                    <option value="white-blue">White Blue</option>
+                    <option value="blue">Blue</option>
+                    <option value="chessboard-js">Brown</option>
+                    <option value="default">Classic</option>
+                    <option value="black-and-white">Black & White</option>
+                  </select>
+                </div>
+                <div className="zen-pref-row">
+                  <span>Piece Set</span>
+                  <select
+                    value={pieceSet}
+                    onChange={(e) => saveBoardAppearance("pieceSet", e.target.value)}
+                  >
+                    <option value="staunty">Staunty</option>
+                    <option value="maestro">Maestro</option>
+                    <option value="standard">Standard</option>
+                  </select>
+                </div>
+              </div>
+              <div className="board-preview-wrap-zen">
+                <div className="board-preview" id="boardAppearancePreview">
+                  <ChessboardReact
+                    position="rn1qkbnr/ppp1pppp/8/3p4/3P4/2N2N2/PPP1PPPP/R1BQKB1R b KQkq - 2 3"
+                    orientation="w"
+                    pieceSet={pieceSet}
+                    boardTheme={boardTheme as any}
+                    inputEnabled={false}
+                    inputColor="w"
+                    gameInstance={dummyGame}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <div className="settings-list-zen">
+              <div className="zen-pref-row">
+                <span>Sound Effects</span>
+                <label className="toggle-switch-zen">
+                  <input
+                    type="checkbox"
+                    checked={soundEnabled}
+                    onChange={(e) => saveSetting("sound", e.target.checked)}
+                  />
+                  <span className="toggle-slider-zen"></span>
+                </label>
+              </div>
+              <div className="zen-pref-row">
+                <span>Training Hints</span>
+                <label className="toggle-switch-zen">
+                  <input
+                    type="checkbox"
+                    checked={hintsEnabled}
+                    onChange={(e) => saveSetting("hints", e.target.checked)}
+                  />
+                  <span className="toggle-slider-zen"></span>
+                </label>
+              </div>
+              <button className="zen-danger-btn" onClick={handleLogout}>
                 Log out
               </button>
             </div>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );
