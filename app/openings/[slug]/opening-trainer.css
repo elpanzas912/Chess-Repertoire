@@ -576,15 +576,15 @@ body { overflow: hidden; }
 }
 
 #board {
-  width: min(1080px, calc(100vh - 100px), calc(100vw - 540px));
-  height: min(1080px, calc(100vh - 100px), calc(100vw - 540px));
+  width: min(1080px, calc(100vh - 100px), calc(100vw - 470px));
+  height: min(1080px, calc(100vh - 100px), calc(100vw - 470px));
   max-width: 100%;
 }
 
 /* ── Progress Bar ── */
 .line-progress-wrap {
   width: 100%;
-  max-width: min(1080px, calc(100vh - 100px), calc(100vw - 540px));
+  max-width: min(1080px, calc(100vh - 100px), calc(100vw - 470px));
 }
 .line-progress-row {
   display: flex;
@@ -647,10 +647,10 @@ body { overflow: hidden; }
 
 /* ── Right Panel ── */
 .trainer-panel {
-  width: 460px;
-  min-width: 460px;
-  max-width: 460px;
-  height: calc(min(1080px, calc(100vh - 100px), calc(100vw - 540px)) + 34px) !important;
+  width: 390px;
+  min-width: 390px;
+  max-width: 390px;
+  height: calc(min(1080px, calc(100vh - 100px), calc(100vw - 470px)) + 34px) !important;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -2892,7 +2892,7 @@ body {
   }
 
   .board-area {
-    height: calc(min(1080px, calc(100vh - 100px), calc(100vw - 540px)) + 34px) !important;
+    height: calc(min(1080px, calc(100vh - 100px), calc(100vw - 470px)) + 34px) !important;
     justify-content: center !important;
     padding: 0 !important;
     position: relative !important;
@@ -2904,7 +2904,7 @@ body {
     left: 50% !important;
     transform: translateX(-50%) !important;
     width: 100% !important;
-    max-width: min(1080px, calc(100vh - 100px), calc(100vw - 540px)) !important;
+    max-width: min(1080px, calc(100vh - 100px), calc(100vw - 470px)) !important;
   }
 
   .completion-overlay {
