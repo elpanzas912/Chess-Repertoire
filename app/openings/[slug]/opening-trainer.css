@@ -650,7 +650,7 @@ body { overflow: hidden; }
   width: 400px;
   min-width: 400px;
   max-width: 400px;
-  height: 100%;
+  height: calc(min(960px, calc(100vh - 140px), calc(100vw - 480px)) + 34px) !important;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
