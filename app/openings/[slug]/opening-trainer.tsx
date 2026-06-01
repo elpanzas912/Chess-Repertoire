@@ -607,6 +607,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   }, [mode, opening.lines, slug]);
 
   const changeMode = useCallback((nextMode: TrainingMode) => {
+    document.body.classList.remove("show-mobile-modes");
     if (nextMode === mode) return;
     if (nextMode === "practice" && learnedLines.size === 0) {
       alert("Learn some lines first!");
@@ -661,6 +662,26 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex), "drill");
     };
   }, [learnedLines, lineIndex, opening.lines, startLine]);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      if (document.body.classList.contains("show-mobile-modes")) {
+        const target = e.target as HTMLElement;
+        const isClickSelector = target.closest(".mode-selector");
+        const isClickToggle = target.closest(".mobile-mode-toggle");
+        if (!isClickSelector && !isClickToggle) {
+          document.body.classList.remove("show-mobile-modes");
+        }
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("touchstart", handleOutsideClick, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("touchstart", handleOutsideClick);
+    };
+  }, []);
 
   function chooseSquare(square: Square) {
     if (boardLocked) return;
