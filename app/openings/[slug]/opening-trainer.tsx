@@ -891,21 +891,47 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
           {/* Mode Selector */}
           <div className="mode-selector">
             {completed ? (
-              <button
-                className="btn-next-line"
-                onClick={() => startLine((lineIndex + 1) % opening.lines.length)}
-                style={{
-                  width: "100%",
-                  height: "56px",
-                  fontSize: "1.1rem",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer"
-                }}
-              >
-                Next Line
-              </button>
+              <div style={{ display: "flex", gap: "12px", width: "100%" }}>
+                <button
+                  className="focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-hidden focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 touch-manipulation select-none border-input hover:bg-accent hover:text-accent-foreground border shadow-xs h-8 rounded-md px-3 sm:px-4 text-xs sm:h-10 sm:text-base btn-secondary"
+                  type="button"
+                  data-cwv="trainer-restart-button"
+                  onClick={() => startLine(lineIndex)}
+                  style={{
+                    height: "56px",
+                    width: "56px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    padding: 0
+                  }}
+                  title="Restart Line"
+                  aria-label="Restart Line"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                    <g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5">
+                      <path d="M12 3a9 9 0 1 1-5.657 2"></path>
+                      <path d="M3 4.5h4v4"></path>
+                    </g>
+                  </svg>
+                </button>
+                <button
+                  className="btn-next-line"
+                  onClick={() => startLine((lineIndex + 1) % opening.lines.length)}
+                  style={{
+                    flex: 1,
+                    height: "56px",
+                    fontSize: "1.1rem",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer"
+                  }}
+                >
+                  Next Line
+                </button>
+              </div>
             ) : (
               <>
                 <button className="mode-btn active" id="modeLearn" type="button">
