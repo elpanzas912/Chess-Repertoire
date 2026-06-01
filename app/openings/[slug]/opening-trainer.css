@@ -2470,8 +2470,8 @@ body {
 }
 
 .line-progress-fill {
-  background: linear-gradient(90deg, #7c3aed 0%, #8b5cf6 50%, #c084fc 100%) !important;
-  box-shadow: 0 0 14px rgba(139, 92, 246, 0.5) !important;
+  background: linear-gradient(90deg, #d4a843 0%, #fbbf24 100%) !important;
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.45) !important;
   border-radius: 8px !important;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
@@ -2479,7 +2479,7 @@ body {
 .line-progress-label .move-num {
   font-weight: 600 !important;
   letter-spacing: 0.02em;
-  color: #a78bfa !important;
+  color: #ffffff !important;
 }
 
 .line-progress-label .move-name {
