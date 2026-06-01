@@ -1126,7 +1126,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
           )}
 
           {/* Spacer to push mode buttons to the center */}
-          <div style={{ flex: 1 }} />
+          <div className="panel-spacer" style={{ flex: 1 }} />
 
           {/* Mode Selector */}
           {mode === "drill" ? (
@@ -1259,7 +1259,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
           )}
 
           {/* Bottom spacer to push mode buttons to the center */}
-          <div style={{ flex: 1 }} />
+          <div className="panel-spacer" style={{ flex: 1 }} />
         </div>
 
         {/* Bottom Toolbar */}
