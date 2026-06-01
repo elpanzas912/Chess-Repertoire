@@ -2993,7 +2993,7 @@ body {
     flex-direction: column !important;
     height: 100dvh !important;
     min-height: 0 !important;
-    padding: 0 0 78px !important;
+    padding: 0 0 108px !important;
     gap: 8px !important;
     align-items: stretch !important;
     max-width: none !important;
@@ -3124,7 +3124,7 @@ body {
     position: absolute !important;
     left: 12px !important;
     right: 12px !important;
-    bottom: calc(153px + min(100vw, calc(100dvh - 220px))) !important;
+    bottom: calc(183px + min(100vw, calc(100dvh - 220px))) !important;
     order: 3 !important;
     height: auto !important;
     min-height: 0 !important;
@@ -3583,11 +3583,11 @@ body {
 @media (max-width: 800px) and (max-height: 680px) {
   .trainer-layout {
     gap: 6px !important;
-    padding: 0 0 53px !important;
+    padding: 0 0 73px !important;
   }
 
   .instruction-dialog {
-    bottom: calc(122px + min(100vw, calc(100dvh - 206px))) !important;
+    bottom: calc(142px + min(100vw, calc(100dvh - 206px))) !important;
     max-height: 96px !important;
     margin: 0 !important;
   }
