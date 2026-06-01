@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Chess, type Square } from "chess.js";
 import { supabase } from "../../../lib/supabase";
-import { createEventId, recordTrainingCompletion, recordTrainingActivity, resetOpeningProgress } from "../../../lib/cloud-progress";
+import { createEventId, recordTrainingCompletion, recordTrainingActivity, resetOpeningProgress, saveDrillHighScore, type TrainingMode } from "../../../lib/cloud-progress";
 import { loadOpening, OpeningAccessError, readCachedOpening, type CachedOpening } from "../../../lib/opening-cache";
 import { ChessboardReact } from "./chessboard-react";
 
@@ -20,7 +20,6 @@ type CourseMove = {
 };
 
 type Feedback = { square: Square; type: "correct" | "wrong" } | null;
-type TrainingMode = "learn" | "practice";
 type PieceSet = "staunty" | "maestro" | "standard";
 type BoardTheme = "green" | "white-violet" | "white-blue" | "blue" | "brown" | "classic" | "black-and-white";
 
@@ -117,6 +116,25 @@ function getRandomPracticeLineIndex(lines: string[], learnedLines: Set<string>, 
     .filter(({ line, index }) => learnedLines.has(line) && (learnedLines.size <= 1 || index !== currentIndex));
   if (!candidates.length) return Math.max(0, currentIndex);
   return candidates[Math.floor(Math.random() * candidates.length)].index;
+}
+
+function getOpeningHighScore(slug: string, key: "drillHighScore") {
+  try {
+    const progress = JSON.parse(localStorage.getItem("chessengineered_progress") ?? "{}");
+    return Math.max(0, Math.round(Number(progress[slug]?.[key]) || 0));
+  } catch {
+    return 0;
+  }
+}
+
+function saveOpeningHighScore(slug: string, key: "drillHighScore", score: number) {
+  const raw = localStorage.getItem("chessengineered_progress");
+  const progress = raw ? JSON.parse(raw) : {};
+  const opening = progress[slug] ?? {};
+  const nextScore = Math.max(Number(opening[key]) || 0, Math.round(score));
+  progress[slug] = { ...opening, [key]: nextScore };
+  localStorage.setItem("chessengineered_progress", JSON.stringify(progress));
+  return nextScore;
 }
 
 const resumeLinesKey = "chessengineered_resume_lines";
@@ -251,6 +269,9 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const [practicePerfectedCount, setPracticePerfectedCount] = useState(() =>
     getPracticePerfectedCount(slug, getKnownLearnedLines(slug, opening.lines)),
   );
+  const [drillScore, setDrillScore] = useState(0);
+  const [drillHighScore, setDrillHighScore] = useState(() => getOpeningHighScore(slug, "drillHighScore"));
+  const [drillGameOver, setDrillGameOver] = useState(false);
   const [boardLocked, setBoardLocked] = useState(true);
   
   // Estados y referencias para la barra de evaluación asíncrona Stockfish
@@ -271,6 +292,8 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const activityStartedAtRef = useRef(Date.now());
   const activityModeRef = useRef<TrainingMode>("learn");
   const startNextPracticeLineRef = useRef<() => void>(() => undefined);
+  const startNextDrillLineRef = useRef<() => void>(() => undefined);
+  const drillScoreRef = useRef(0);
   const currentLine = opening.lines[lineIndex];
   const moves = useMemo(() => parseLine(currentLine), [currentLine]);
   const learnedCount = learnedLines.size;
@@ -407,6 +430,10 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   }, []);
 
   const updateInstruction = useCallback((chess: Chess) => {
+    if (mode === "drill") {
+      setInstruction(`Streak: ${drillScoreRef.current} — completa tantas líneas seguidas como puedas.`);
+      return;
+    }
     if (mode === "practice") {
       setInstruction(chess.turn() === opening.playerSide ? "¿Cuál es la mejor jugada?" : "Preparando la respuesta del rival...");
       return;
@@ -423,12 +450,15 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       const nextIndex = getNextLearnLineIndex(opening.lines, nextLearnedLines, lineIndex + 1);
       saveResumeLine(slug, opening.lines[nextIndex]);
       setLearnedLines(nextLearnedLines);
-    } else {
+    } else if (mode === "practice") {
       savePracticeCompletion(slug, currentLine, incorrectMovesRef.current === 0);
       setPracticePerfectedCount(getPracticePerfectedCount(slug, getKnownLearnedLines(slug, opening.lines)));
+    } else {
+      drillScoreRef.current += 1;
+      setDrillScore(drillScoreRef.current);
     }
 
-    if (!supabase) return;
+    if (!supabase || mode === "drill") return;
     const now = Date.now();
     const activeDurationMs = now - activityStartedAtRef.current;
     activityStartedAtRef.current = now;
@@ -500,6 +530,10 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
         setCompleted(true);
         completeCurrentLine();
         setBoardLocked(true);
+        if (mode === "drill") {
+          timer.current = setTimeout(() => startNextDrillLineRef.current(), PRACTICE_TRANSITION_DELAY_MS);
+          return;
+        }
         if (mode === "practice") {
           timer.current = setTimeout(() => startNextPracticeLineRef.current(), PRACTICE_TRANSITION_DELAY_MS);
           return;
@@ -538,6 +572,19 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     timer.current = setTimeout(playNext, initialDelay);
   }, [completeCurrentLine, mode, moves, opening.playerSide, soundsEnabled, updateInstruction, updateEvaluation, playCompletionConfetti]);
 
+  const endDrillRound = useCallback(() => {
+    if (drillGameOver) return;
+    setDrillGameOver(true);
+    setCompleted(true);
+    setBoardLocked(true);
+    const nextHighScore = saveOpeningHighScore(slug, "drillHighScore", drillScore);
+    setDrillHighScore(nextHighScore);
+    if (supabase && drillScore >= nextHighScore) {
+      void saveDrillHighScore(supabase, slug, drillScore)
+        .catch((error) => console.warn("Unable to save drill high score:", error.message));
+    }
+  }, [drillGameOver, drillScore, slug]);
+
   const startLine = useCallback((index: number, nextMode = mode) => {
     const nextIndex = index >= 0 && index < opening.lines.length ? index : 0;
     if (timer.current) clearTimeout(timer.current);
@@ -565,6 +612,10 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       alert("Learn some lines first!");
       return;
     }
+    if (nextMode === "drill" && learnedLines.size < 3) {
+      alert("Learn 3 lines to unlock Drill!");
+      return;
+    }
     const now = Date.now();
     const durationMs = now - activityStartedAtRef.current;
     activityStartedAtRef.current = now;
@@ -575,7 +626,12 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     }
     setMode(nextMode);
     activityModeRef.current = nextMode;
-    const nextIndex = nextMode === "practice"
+    setDrillGameOver(false);
+    if (nextMode === "drill") {
+      drillScoreRef.current = 0;
+      setDrillScore(0);
+    }
+    const nextIndex = nextMode === "practice" || nextMode === "drill"
       ? getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex)
       : getResumeLineIndex(slug, opening.lines);
     startLine(nextIndex, nextMode);
@@ -600,6 +656,9 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   useEffect(() => {
     startNextPracticeLineRef.current = () => {
       startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex), "practice");
+    };
+    startNextDrillLineRef.current = () => {
+      startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex), "drill");
     };
   }, [learnedLines, lineIndex, opening.lines, startLine]);
 
@@ -638,6 +697,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
       if (expected.from !== from || expected.to !== to) {
         incorrectMovesRef.current += 1;
+        if (mode === "drill") endDrillRound();
         // Movimiento incorrecto
         const fenBefore = game.fen();
 
@@ -664,9 +724,11 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
           setGame(originalChess);
           updateEvaluation(originalChess);
           setLastMove(null);
-          setTimeout(() => {
-            setBoardLocked(false);
-          }, 200);
+          if (mode !== "drill") {
+            setTimeout(() => {
+              setBoardLocked(false);
+            }, 200);
+          }
         }, 500);
 
         return true; // Permite soltar la pieza en la casilla incorrecta para simular el feedback visual
@@ -698,7 +760,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
       return true; // Pieza se queda
     },
-    [completed, boardLocked, moves, moveIndex, opening.playerSide, game, soundsEnabled, vibrate, playOpponentMoves, updateInstruction, updateEvaluation]
+    [completed, boardLocked, moves, moveIndex, opening.playerSide, game, soundsEnabled, vibrate, playOpponentMoves, updateInstruction, updateEvaluation, mode, endDrillRound]
   );
 
   function attemptMove(from: Square, to: Square) {
@@ -719,12 +781,13 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
     if (expected.from !== from || expected.to !== to) {
       incorrectMovesRef.current += 1;
+      if (mode === "drill") endDrillRound();
       setFeedback({ square: to, type: "wrong" });
       vibrate([18, 20, 18]);
       playSound("illegal", soundsEnabled);
       timer.current = setTimeout(() => {
         setFeedback(null);
-        setBoardLocked(false);
+        if (mode !== "drill") setBoardLocked(false);
       }, 520);
       return;
     }
@@ -837,6 +900,10 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     saveResumeLine(slug, opening.lines[0]);
     setLearnedLines(new Set());
     setPracticePerfectedCount(0);
+    drillScoreRef.current = 0;
+    setDrillScore(0);
+    setDrillHighScore(0);
+    setDrillGameOver(false);
     setMode("learn");
     activityModeRef.current = "learn";
     startLine(0);
@@ -1001,7 +1068,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                 <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
               </svg>
               <div>
-                <div className="mode-name">{mode === "practice" ? "Practice" : "Learn"}</div>
+                <div className="mode-name">{mode === "drill" ? "Drill" : mode === "practice" ? "Practice" : "Learn"}</div>
                 <div className="opening-name" id="openingName">{opening.displayName.replace(" Mastery", "")}</div>
               </div>
             </div>
@@ -1015,7 +1082,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
               <div className="dropdown-list" id="dropdownList">
                 {opening.lines.map((line, index) => {
                   const learned = learnedLines.has(line);
-                  const locked = mode === "practice"
+                  const locked = mode === "practice" || mode === "drill"
                     ? !learned
                     : !learned && index !== getNextLearnLineIndex(opening.lines, learnedLines);
                   return (
@@ -1062,6 +1129,27 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
           <div style={{ flex: 1 }} />
 
           {/* Mode Selector */}
+          {mode === "drill" ? (
+            <div className="drill-panel active" id="drillPanel">
+              <div className="drill-scoreboard">
+                <div className="drill-score-item">
+                  <span className="drill-score-label">Score</span>
+                  <span className="drill-score-value" id="drillScore">{drillScore}</span>
+                </div>
+                <div className={`drill-high-score ${drillHighScore > 0 ? "" : "locked"}`} id="drillHighScoreWrap">
+                  <span className="drill-score-label">High Score</span>
+                  <span className="drill-score-value" id="drillHighScore">{drillHighScore > 0 ? drillHighScore : "--"}</span>
+                </div>
+              </div>
+              <div className="drill-leaderboard">
+                <div className="drill-leaderboard-header">
+                  <h3>Drill Mode</h3>
+                </div>
+                <div className="drill-leaderboard-msg">Un error termina la ronda. Completa tantas líneas seguidas como puedas.</div>
+              </div>
+              <button className="btn-leave-drill" type="button" onClick={() => changeMode("learn")}>Leave Drill Mode</button>
+            </div>
+          ) : (
           <div className="mode-selector">
             {completed && mode === "learn" ? (
               <div style={{ display: "flex", gap: "12px", width: "100%" }}>
@@ -1142,7 +1230,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                 </button>
 
                 <div className="mode-grid">
-                  <button className="mode-btn small locked" id="modeDrill" disabled type="button">
+                  <button className={`mode-btn small ${learnedCount < 3 ? "locked" : ""}`} id="modeDrill" disabled={learnedCount < 3} type="button" onClick={() => changeMode("drill")}>
                     <div className="mode-btn-main">
                       <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)", opacity: 0.5 }}>
                         <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
@@ -1168,6 +1256,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
               </>
             )}
           </div>
+          )}
 
           {/* Bottom spacer to push mode buttons to the center */}
           <div style={{ flex: 1 }} />
@@ -1309,6 +1398,18 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
             <button className="toolbar-btn mobile-mode-toggle" type="button" aria-label="Change mode" onClick={() => document.body.classList.toggle("show-mobile-modes")}>Mode</button>
           </div>
         </div>
+      </div>
+      <div className={`gameover-overlay ${drillGameOver ? "open" : ""}`} id="gameoverOverlay">
+        <h2>Game Over</h2>
+        <div className="gameover-score">Score: {drillScore}</div>
+        <div className="gameover-high">High Score: {drillHighScore}</div>
+        <button className="btn-next-line" type="button" onClick={() => {
+          drillScoreRef.current = 0;
+          setDrillScore(0);
+          setDrillGameOver(false);
+          startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex), "drill");
+        }}>Try Again</button>
+        <button className="btn-next-line" type="button" onClick={() => changeMode("learn")}>Leave Drill</button>
       </div>
     </div>
   );
