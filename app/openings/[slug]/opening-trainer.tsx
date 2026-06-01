@@ -593,7 +593,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
   useEffect(() => {
     if (!completed || mode !== "practice") return;
-    timer.current = setTimeout(() => startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex)), 150);
+    timer.current = setTimeout(() => startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex)), 350);
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
