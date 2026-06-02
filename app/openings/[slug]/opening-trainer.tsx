@@ -1021,6 +1021,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     setMode(nextMode);
     activityModeRef.current = nextMode;
     setDrillGameOver(false);
+    setTimeGameOver(false);
     if (nextMode === "drill") {
       drillScoreRef.current = 0;
       setDrillScore(0);
