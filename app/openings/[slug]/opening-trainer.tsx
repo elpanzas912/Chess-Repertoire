@@ -875,7 +875,9 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     completedLineRef.current = true;
     setCompleted(true);
     setBoardLocked(true);
-    applyLocalPuzzleResult(true);
+    if (!puzzlePenalizedRef.current) {
+      applyLocalPuzzleResult(true);
+    }
     playSound("game-end", soundsEnabled);
     timer.current = setTimeout(() => loadNextPuzzleRef.current(), PUZZLE_TRANSITION_DELAY_MS);
   }, [applyLocalPuzzleResult, soundsEnabled]);
