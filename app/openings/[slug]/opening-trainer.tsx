@@ -1271,7 +1271,6 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     if (hint) {
       // Si el hint ya está activo, hacemos "Solve" (Resolver la jugada automáticamente)
       if (mode === "practice") incorrectMovesRef.current += 1;
-      if (mode === "puzzle") handlePuzzleFailure();
       setHint(null);
       setSelected(null);
       setLegalTargets([]);
@@ -1303,6 +1302,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       }, 350);
     } else {
       // Si no, activamos el hint (Pista) que resalta la casilla origen
+      if (mode === "puzzle") handlePuzzleFailure();
       setHint(expected.from as Square);
     }
   }, [
