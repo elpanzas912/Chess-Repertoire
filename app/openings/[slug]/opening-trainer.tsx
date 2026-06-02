@@ -193,6 +193,12 @@ export function OpeningTrainer({ slug }: { slug: string }) {
   const router = useRouter();
   const [opening, setOpening] = useState<Opening | null>(() => readCachedOpening(slug));
   const [error, setError] = useState("");
+  const [showLoginOverlay, setShowLoginOverlay] = useState(false);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginPending, setLoginPending] = useState(false);
+  const [triggerReload, setTriggerReload] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -204,12 +210,15 @@ export function OpeningTrainer({ slug }: { slug: string }) {
       }
 
       const loadedOpening = await loadOpening(supabase, slug);
-      if (active) setOpening(loadedOpening);
+      if (active) {
+        setOpening(loadedOpening);
+        setError(""); // Clear error on successful load
+      }
     }
 
     void loadOpeningData().catch((loadError) => {
       if (loadError instanceof OpeningAccessError && loadError.status === 401) {
-        router.replace(`/login?next=/opening/${slug}`);
+        setShowLoginOverlay(true);
         return;
       }
       if (loadError instanceof OpeningAccessError && loadError.status === 403) {
@@ -222,7 +231,91 @@ export function OpeningTrainer({ slug }: { slug: string }) {
     return () => {
       active = false;
     };
-  }, [router, slug]);
+  }, [router, slug, triggerReload]);
+
+  async function handleGoogleLogin() {
+    setLoginError(null);
+    if (!supabase) {
+      setLoginError("Supabase no está configurado.");
+      return;
+    }
+    setLoginPending(true);
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.href },
+    });
+    if (oauthError) {
+      setLoginPending(false);
+      setLoginError("No pudimos iniciar sesión con Google.");
+    }
+  }
+
+  async function handleEmailLogin(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoginError(null);
+    if (!supabase) {
+      setLoginError("Supabase no está configurado.");
+      return;
+    }
+    setLoginPending(true);
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: loginEmail,
+      password: loginPassword,
+    });
+    setLoginPending(false);
+    if (signInError) {
+      setLoginError("No pudimos iniciar sesión. Revisa tus datos.");
+      return;
+    }
+    setShowLoginOverlay(false);
+    setTriggerReload((prev) => prev + 1); // Trigger loadOpeningData again!
+  }
+
+  if (showLoginOverlay) {
+    return (
+      <div className="login-overlay-container">
+        <div className="bg-glows" aria-hidden="true">
+          <div className="glow glow-1"></div>
+          <div className="glow glow-2"></div>
+        </div>
+        <form className="login-card floating-login-card" onSubmit={handleEmailLogin}>
+          <h1>Iniciar sesión</h1>
+          <p>Accede a tu progreso y a tus cursos desbloqueados.</p>
+          <button className="google-login" disabled={loginPending} onClick={handleGoogleLogin} type="button">
+            Continuar con Google
+          </button>
+          <div className="login-separator">
+            <span>o usa tu email</span>
+          </div>
+          <label>
+            Email
+            <input
+              autoComplete="email"
+              onChange={(event) => setLoginEmail(event.target.value)}
+              required
+              type="email"
+              value={loginEmail}
+            />
+          </label>
+          <label>
+            Contraseña
+            <input
+              autoComplete="current-password"
+              minLength={6}
+              onChange={(event) => setLoginPassword(event.target.value)}
+              required
+              type="password"
+              value={loginPassword}
+            />
+          </label>
+          {loginError && <p className="form-error">{loginError}</p>}
+          <button disabled={loginPending} type="submit">
+            {loginPending ? "Ingresando..." : "Ingresar"}
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   if (error) return <TrainerMessage message={error} />;
   if (!opening) return null;
