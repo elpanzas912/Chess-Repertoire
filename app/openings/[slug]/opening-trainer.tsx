@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Chess, type Square } from "chess.js";
 import { supabase } from "../../../lib/supabase";
-import { createEventId, recordTrainingCompletion, recordTrainingActivity, resetOpeningProgress, saveDrillHighScore, saveTimeHighScore, type TrainingMode } from "../../../lib/cloud-progress";
+import { createEventId, readCachedProgress, recordTrainingCompletion, recordTrainingActivity, resetOpeningProgress, saveDrillHighScore, savePuzzleResult, saveTimeHighScore, type TrainingMode } from "../../../lib/cloud-progress";
 import { loadOpening, OpeningAccessError, readCachedOpening, type CachedOpening } from "../../../lib/opening-cache";
 import { ChessboardReact } from "./chessboard-react";
 
@@ -15,8 +15,16 @@ type Opening = CachedOpening;
 type CourseMove = {
   color: string;
   from: Square;
+  promotion?: string;
   san: string;
   to: Square;
+};
+
+type Puzzle = {
+  FEN: string;
+  Moves: string;
+  Rating: number;
+  id: string;
 };
 
 type Feedback = { square: Square; type: "correct" | "wrong" } | null;
@@ -26,6 +34,14 @@ type BoardTheme = "green" | "white-violet" | "white-blue" | "blue" | "brown" | "
 const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
 const ranks = ["8", "7", "6", "5", "4", "3", "2", "1"];
 const PRACTICE_TRANSITION_DELAY_MS = 800;
+const PUZZLE_TRANSITION_DELAY_MS = 600;
+const PUZZLE_ASSET_SLUGS: Record<string, string> = {
+  "bishop-s-opening": "bishops-opening",
+  "king-s-gambit": "kings-gambit",
+  "king-s-indian-defense": "kings-indian-defense",
+  "queen-s-gambit-accepted": "queens-gambit-accepted",
+  "queen-s-gambit-declined": "queens-gambit-declined",
+};
 
 function parseLine(pgn: string): CourseMove[] {
   const chess = new Chess();
@@ -36,6 +52,59 @@ function parseLine(pgn: string): CourseMove[] {
     san: move.san,
     to: move.to,
   }));
+}
+
+function parsePuzzleMoves(puzzle: Puzzle): CourseMove[] {
+  const chess = new Chess(puzzle.FEN);
+  const tokens = String(puzzle.Moves).split(/\s+/).filter((uci) => /^[a-h][1-8][a-h][1-8][qrbn]?$/i.test(uci));
+  const moves: CourseMove[] = [];
+
+  for (const uci of tokens) {
+    const from = uci.slice(0, 2) as Square;
+    const to = uci.slice(2, 4) as Square;
+    const promotion = uci.length > 4 ? uci.slice(4, 5).toLowerCase() : undefined;
+    const legal = chess.moves({ verbose: true }).find((move) =>
+      move.from === from && move.to === to && (!promotion || move.promotion === promotion),
+    );
+    if (!legal) break;
+    const applied = chess.move({ from, to, ...(promotion ? { promotion } : {}) });
+    if (!applied) break;
+    moves.push({ color: applied.color, from, to, promotion, san: applied.san });
+  }
+
+  return moves;
+}
+
+function getPuzzleProgress() {
+  const progress = readCachedProgress();
+  return {
+    elo: Math.max(400, Math.round(Number(progress.puzzleELO) || 1500)),
+    streak: Math.max(0, Math.round(Number(progress.puzzleStreak) || 0)),
+  };
+}
+
+function saveLocalPuzzleProgress(elo: number, streak: number) {
+  const progress = readCachedProgress();
+  localStorage.setItem("chessengineered_progress", JSON.stringify({
+    ...progress,
+    puzzleELO: Math.max(400, Math.round(elo)),
+    puzzleStreak: Math.max(0, Math.round(streak)),
+  }));
+}
+
+function puzzleRatingChange(playerRating: number, puzzleRating: number, solved: boolean) {
+  const expectedScore = 1 / (1 + Math.pow(10, (puzzleRating - playerRating) / 400));
+  return Math.round(32 * ((solved ? 1 : 0) - expectedScore));
+}
+
+function selectPuzzle(puzzles: Puzzle[], elo: number, previousId?: string) {
+  for (let range = 150; range <= 1050; range += 100) {
+    const candidates = puzzles.filter((puzzle) =>
+      Math.abs((Number(puzzle.Rating) || 1500) - elo) <= range && (puzzles.length <= 1 || puzzle.id !== previousId),
+    );
+    if (candidates.length) return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+  return puzzles.find((puzzle) => puzzle.id !== previousId) ?? puzzles[0];
 }
 
 function materialScore(chess: Chess) {
@@ -369,6 +438,13 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const [timeHighScore, setTimeHighScore] = useState(() => getOpeningHighScore(slug, "timeHighScore"));
   const [timeRemainingMs, setTimeRemainingMs] = useState(60000);
   const [timeGameOver, setTimeGameOver] = useState(false);
+  const [puzzles, setPuzzles] = useState<Puzzle[]>([]);
+  const [currentPuzzle, setCurrentPuzzle] = useState<Puzzle | null>(null);
+  const [puzzleMoves, setPuzzleMoves] = useState<CourseMove[]>([]);
+  const [puzzleElo, setPuzzleElo] = useState(() => getPuzzleProgress().elo);
+  const [puzzleStreak, setPuzzleStreak] = useState(() => getPuzzleProgress().streak);
+  const [puzzleMessage, setPuzzleMessage] = useState("");
+  const [puzzleLoading, setPuzzleLoading] = useState(false);
   const [boardLocked, setBoardLocked] = useState(true);
   
   // Estados y referencias para la barra de evaluación asíncrona Stockfish
@@ -397,8 +473,20 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const timeDeadlineRef = useRef(0);
   const timeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tenSecondSoundPlayedRef = useRef(false);
+  const puzzlePenalizedRef = useRef(false);
+  const currentPuzzleRef = useRef<Puzzle | null>(null);
+  const puzzleMovesRef = useRef<CourseMove[]>([]);
+  const puzzleEloRef = useRef(getPuzzleProgress().elo);
+  const puzzleStreakRef = useRef(getPuzzleProgress().streak);
+  const puzzleSyncRef = useRef(Promise.resolve());
+  const puzzleSyncSeqRef = useRef(0);
+  const puzzleLoadSeqRef = useRef(0);
+  const loadNextPuzzleRef = useRef<() => void>(() => undefined);
+  const handlePuzzleSuccessRef = useRef<() => void>(() => undefined);
+  const playOpponentPuzzleMovesRef = useRef<(source: Chess, startIndex: number) => void>(() => undefined);
   const currentLine = opening.lines[lineIndex];
-  const moves = useMemo(() => parseLine(currentLine), [currentLine]);
+  const lineMoves = useMemo(() => parseLine(currentLine), [currentLine]);
+  const moves = mode === "puzzle" ? puzzleMoves : lineMoves;
   const learnedCount = learnedLines.size;
   const nextLearnLineIndex = getNextLearnLineIndex(opening.lines, learnedLines, lineIndex + 1);
   const nextPracticeLineIndex = getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex);
@@ -533,6 +621,10 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   }, []);
 
   const updateInstruction = useCallback((chess: Chess) => {
+    if (mode === "puzzle") {
+      setInstruction(`Streak: ${puzzleStreakRef.current} — resuelve el puzzle y encuentra la mejor jugada.`);
+      return;
+    }
     if (mode === "time") {
       setInstruction(`Score: ${timeScoreRef.current} — completa tantas líneas como puedas antes de que termine el tiempo.`);
       return;
@@ -560,14 +652,12 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     } else if (mode === "practice") {
       savePracticeCompletion(slug, currentLine, incorrectMovesRef.current === 0);
       setPracticePerfectedCount(getPracticePerfectedCount(slug, getKnownLearnedLines(slug, opening.lines)));
-    } else {
-      if (mode === "drill") {
-        drillScoreRef.current += 1;
-        setDrillScore(drillScoreRef.current);
-      } else {
-        timeScoreRef.current += 1;
-        setTimeScore(timeScoreRef.current);
-      }
+    } else if (mode === "drill") {
+      drillScoreRef.current += 1;
+      setDrillScore(drillScoreRef.current);
+    } else if (mode === "time") {
+      timeScoreRef.current += 1;
+      setTimeScore(timeScoreRef.current);
     }
 
     if (!supabase || mode === "drill" || mode === "time") return;
@@ -693,13 +783,15 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     setDrillGameOver(true);
     setCompleted(true);
     setBoardLocked(true);
+    playSound("illegal", soundsEnabled);
+    document.getElementById("board")?.classList.add("shake-error");
     const nextHighScore = saveOpeningHighScore(slug, "drillHighScore", drillScore);
     setDrillHighScore(nextHighScore);
     if (supabase && drillScore >= nextHighScore) {
       void saveDrillHighScore(supabase, slug, drillScore)
         .catch((error) => console.warn("Unable to save drill high score:", error.message));
     }
-  }, [drillGameOver, drillScore, slug]);
+  }, [drillGameOver, drillScore, slug, soundsEnabled]);
 
   const endTimeRound = useCallback(() => {
     if (timeGameOver) return;
@@ -711,13 +803,15 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     setTimeGameOver(true);
     setCompleted(true);
     setBoardLocked(true);
+    playSound("illegal", soundsEnabled);
+    document.getElementById("board")?.classList.add("shake-error");
     const nextHighScore = saveOpeningHighScore(slug, "timeHighScore", timeScoreRef.current);
     setTimeHighScore(nextHighScore);
     if (supabase && timeScoreRef.current >= nextHighScore) {
       void saveTimeHighScore(supabase, slug, timeScoreRef.current)
         .catch((error) => console.warn("Unable to save time high score:", error.message));
     }
-  }, [slug, timeGameOver]);
+  }, [slug, timeGameOver, soundsEnabled]);
 
   const startTimeRound = useCallback(() => {
     if (timeIntervalRef.current) clearInterval(timeIntervalRef.current);
@@ -738,6 +832,143 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     }, 30);
   }, [endTimeRound, soundsEnabled]);
 
+  const syncPuzzleResult = useCallback((puzzleRating: number, solved: boolean) => {
+    if (!supabase) return;
+    const client = supabase;
+    const syncSeq = ++puzzleSyncSeqRef.current;
+    puzzleSyncRef.current = puzzleSyncRef.current
+      .then(() => savePuzzleResult(client, puzzleRating, solved))
+      .then((progress) => {
+        if (syncSeq !== puzzleSyncSeqRef.current) return;
+        const nextElo = Math.max(400, Math.round(Number(progress.puzzleELO) || 1500));
+        const nextStreak = Math.max(0, Math.round(Number(progress.puzzleStreak) || 0));
+        puzzleEloRef.current = nextElo;
+        puzzleStreakRef.current = nextStreak;
+        setPuzzleElo(nextElo);
+        setPuzzleStreak(nextStreak);
+      })
+      .catch((error) => console.warn("Unable to sync puzzle result:", error.message));
+  }, []);
+
+  const applyLocalPuzzleResult = useCallback((solved: boolean) => {
+    const puzzleRating = Math.max(400, Math.round(Number(currentPuzzleRef.current?.Rating) || 1500));
+    const ratingChange = puzzleRatingChange(puzzleEloRef.current, puzzleRating, solved);
+    const nextElo = Math.max(400, puzzleEloRef.current + ratingChange);
+    const nextStreak = solved ? puzzleStreakRef.current + 1 : 0;
+    puzzleEloRef.current = nextElo;
+    puzzleStreakRef.current = nextStreak;
+    saveLocalPuzzleProgress(nextElo, nextStreak);
+    setPuzzleElo(nextElo);
+    setPuzzleStreak(nextStreak);
+    setPuzzleMessage(`${ratingChange >= 0 ? "+" : ""}${ratingChange} ELO`);
+    syncPuzzleResult(puzzleRating, solved);
+  }, [syncPuzzleResult]);
+
+  const handlePuzzleFailure = useCallback(() => {
+    if (puzzlePenalizedRef.current) return;
+    puzzlePenalizedRef.current = true;
+    applyLocalPuzzleResult(false);
+  }, [applyLocalPuzzleResult]);
+
+  const handlePuzzleSuccess = useCallback(() => {
+    if (completedLineRef.current) return;
+    completedLineRef.current = true;
+    setCompleted(true);
+    setBoardLocked(true);
+    applyLocalPuzzleResult(true);
+    playSound("game-end", soundsEnabled);
+    timer.current = setTimeout(() => loadNextPuzzleRef.current(), PUZZLE_TRANSITION_DELAY_MS);
+  }, [applyLocalPuzzleResult, soundsEnabled]);
+
+  const playOpponentPuzzleMoves = useCallback((source: Chess, startIndex: number) => {
+    const chess = new Chess(source.fen());
+    let index = startIndex;
+
+    const playNext = () => {
+      const next = puzzleMovesRef.current[index];
+      if (!next) {
+        handlePuzzleSuccessRef.current();
+        return;
+      }
+      if (next.color === opening.playerSide) {
+        setGame(new Chess(chess.fen()));
+        updateEvaluation(chess);
+        setMoveIndex(index);
+        setBoardLocked(false);
+        updateInstruction(chess);
+        return;
+      }
+
+      const move = chess.move({ from: next.from, to: next.to, ...(next.promotion ? { promotion: next.promotion } : {}) });
+      if (!move) return;
+      index += 1;
+      setGame(new Chess(chess.fen()));
+      updateEvaluation(chess);
+      setMoveIndex(index);
+      setLastMove({ from: move.from, to: move.to });
+      playSound(pieceSound(move, false), soundsEnabled);
+      timer.current = setTimeout(playNext, 200);
+    };
+
+    setBoardLocked(true);
+    timer.current = setTimeout(playNext, 200);
+  }, [opening.playerSide, soundsEnabled, updateEvaluation, updateInstruction]);
+
+  const loadNextPuzzle = useCallback(async () => {
+    const loadSeq = ++puzzleLoadSeqRef.current;
+    if (timer.current) clearTimeout(timer.current);
+    setPuzzleLoading(true);
+    setPuzzleMessage("");
+    setBoardLocked(true);
+
+    try {
+      let availablePuzzles = puzzles;
+      if (!availablePuzzles.length) {
+        const assetSlug = PUZZLE_ASSET_SLUGS[slug] ?? slug;
+        const response = await fetch(`/puzzles/${assetSlug}.json`);
+        if (!response.ok) throw new Error("Puzzle dataset not found");
+        availablePuzzles = (await response.json()) as Puzzle[];
+        setPuzzles(availablePuzzles);
+      }
+      if (loadSeq !== puzzleLoadSeqRef.current) return;
+
+      const puzzle = selectPuzzle(availablePuzzles, puzzleEloRef.current, currentPuzzleRef.current?.id);
+      if (!puzzle) throw new Error("No playable puzzles available");
+      const nextMoves = parsePuzzleMoves(puzzle);
+      if (!nextMoves.length) throw new Error("Puzzle has no playable moves");
+
+      const chess = new Chess(puzzle.FEN);
+      currentPuzzleRef.current = puzzle;
+      puzzleMovesRef.current = nextMoves;
+      puzzlePenalizedRef.current = false;
+      completedLineRef.current = false;
+      setCurrentPuzzle(puzzle);
+      setPuzzleMoves(nextMoves);
+      setGame(chess);
+      updateEvaluation(chess);
+      setMoveIndex(0);
+      setSelected(null);
+      setLegalTargets([]);
+      setFeedback(null);
+      setLastMove(null);
+      setHint(null);
+      setCompleted(false);
+      setInstruction("Resuelve el puzzle y encuentra la mejor jugada.");
+      playOpponentPuzzleMovesRef.current(chess, 0);
+    } catch (error) {
+      setInstruction("No hay puzzles disponibles para esta apertura.");
+      console.warn("Unable to load puzzles:", error);
+    } finally {
+      setPuzzleLoading(false);
+    }
+  }, [puzzles, slug, updateEvaluation]);
+
+  useEffect(() => {
+    loadNextPuzzleRef.current = () => void loadNextPuzzle();
+    handlePuzzleSuccessRef.current = handlePuzzleSuccess;
+    playOpponentPuzzleMovesRef.current = playOpponentPuzzleMoves;
+  }, [handlePuzzleSuccess, loadNextPuzzle, playOpponentPuzzleMoves]);
+
   const startLine = useCallback((index: number, nextMode = mode) => {
     const nextIndex = index >= 0 && index < opening.lines.length ? index : 0;
     if (timer.current) clearTimeout(timer.current);
@@ -757,6 +988,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     setCompleted(false);
     setBoardLocked(true);
     setRestartVersion((version) => version + 1);
+    document.getElementById("board")?.classList.remove("shake-error");
   }, [mode, opening.lines, slug]);
 
   const changeMode = useCallback((nextMode: TrainingMode) => {
@@ -772,6 +1004,10 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     }
     if (nextMode === "time" && learnedLines.size < 3) {
       alert("Learn 3 lines to unlock Time Trials!");
+      return;
+    }
+    if (nextMode === "puzzle" && learnedLines.size < 2) {
+      alert("Learn 2 lines to unlock Puzzles!");
       return;
     }
     const now = Date.now();
@@ -794,13 +1030,19 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       clearInterval(timeIntervalRef.current);
       timeIntervalRef.current = null;
     }
+    if (nextMode === "puzzle") {
+      void loadNextPuzzle();
+      return;
+    }
+    puzzleLoadSeqRef.current += 1;
     const nextIndex = nextMode === "practice" || nextMode === "drill" || nextMode === "time"
       ? getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex)
       : getResumeLineIndex(slug, opening.lines);
     startLine(nextIndex, nextMode);
-  }, [learnedLines, lineIndex, mode, opening.lines, slug, startLine, startTimeRound]);
+  }, [learnedLines, lineIndex, loadNextPuzzle, mode, opening.lines, slug, startLine, startTimeRound]);
 
   useEffect(() => {
+    if (mode === "puzzle") return;
     const chess = new Chess();
     setGame(chess);
     updateEvaluation(chess);
@@ -814,7 +1056,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       if (evalTimerRef.current) clearTimeout(evalTimerRef.current);
       if (abortControllerRef.current) abortControllerRef.current.abort();
     };
-  }, [lineIndex, playOpponentMoves, restartVersion, updateEvaluation]);
+  }, [lineIndex, mode, playOpponentMoves, restartVersion, updateEvaluation]);
 
   useEffect(() => {
     startNextPracticeLineRef.current = () => {
@@ -886,6 +1128,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
       if (expected.from !== from || expected.to !== to) {
         incorrectMovesRef.current += 1;
+        if (mode === "puzzle") handlePuzzleFailure();
         if (mode === "drill") endDrillRound();
         if (mode === "time") {
           setFeedback({ square: to, type: "wrong" });
@@ -932,7 +1175,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
       // Movimiento correcto
       const chess = new Chess(game.fen());
-      const move = chess.move({ from, to, promotion: "q" });
+      const move = chess.move({ from, to, promotion: expected.promotion ?? "q" });
       if (!move) {
         setBoardLocked(false);
         return false;
@@ -951,12 +1194,13 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
       setTimeout(() => {
         setFeedback(null);
-        playOpponentMoves(chess, nextIndex, 0); // 0 delay inicial porque ya esperamos los 350ms del checkmark
+        if (mode === "puzzle") playOpponentPuzzleMovesRef.current(chess, nextIndex);
+        else playOpponentMoves(chess, nextIndex, 0); // 0 delay inicial porque ya esperamos los 350ms del checkmark
       }, 350);
 
       return true; // Pieza se queda
     },
-    [completed, boardLocked, moves, moveIndex, opening.playerSide, game, soundsEnabled, vibrate, playOpponentMoves, updateInstruction, updateEvaluation, mode, endDrillRound]
+    [completed, boardLocked, moves, moveIndex, opening.playerSide, game, soundsEnabled, vibrate, playOpponentMoves, updateInstruction, updateEvaluation, mode, endDrillRound, handlePuzzleFailure]
   );
 
   function attemptMove(from: Square, to: Square) {
@@ -977,6 +1221,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
     if (expected.from !== from || expected.to !== to) {
       incorrectMovesRef.current += 1;
+      if (mode === "puzzle") handlePuzzleFailure();
       if (mode === "drill") endDrillRound();
       if (mode === "time") {
         setFeedback({ square: to, type: "wrong" });
@@ -996,7 +1241,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     }
 
     const chess = new Chess(game.fen());
-    const move = chess.move({ from, to, promotion: "q" });
+    const move = chess.move({ from, to, promotion: expected.promotion ?? "q" });
     if (!move) {
       setBoardLocked(false);
       return;
@@ -1012,7 +1257,8 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     updateInstruction(chess);
     timer.current = setTimeout(() => {
       setFeedback(null);
-      playOpponentMoves(chess, nextIndex);
+      if (mode === "puzzle") playOpponentPuzzleMovesRef.current(chess, nextIndex);
+      else playOpponentMoves(chess, nextIndex);
     }, 360);
   }
 
@@ -1024,6 +1270,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     if (hint) {
       // Si el hint ya está activo, hacemos "Solve" (Resolver la jugada automáticamente)
       if (mode === "practice") incorrectMovesRef.current += 1;
+      if (mode === "puzzle") handlePuzzleFailure();
       setHint(null);
       setSelected(null);
       setLegalTargets([]);
@@ -1033,7 +1280,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       const to = expected.to as Square;
 
       const chess = new Chess(game.fen());
-      const move = chess.move({ from, to, promotion: "q" });
+      const move = chess.move({ from, to, promotion: expected.promotion ?? "q" });
       if (!move) {
         setBoardLocked(false);
         return;
@@ -1050,7 +1297,8 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       updateInstruction(chess);
       timer.current = setTimeout(() => {
         setFeedback(null);
-        playOpponentMoves(chess, nextIndex, 0); // 0 delay inicial porque ya esperamos los 350ms del checkmark
+        if (mode === "puzzle") playOpponentPuzzleMovesRef.current(chess, nextIndex);
+        else playOpponentMoves(chess, nextIndex, 0); // 0 delay inicial porque ya esperamos los 350ms del checkmark
       }, 350);
     } else {
       // Si no, activamos el hint (Pista) que resalta la casilla origen
@@ -1070,6 +1318,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     updateInstruction,
     updateEvaluation,
     mode,
+    handlePuzzleFailure,
   ]);
 
 
@@ -1223,7 +1472,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
           </div>
           <div className="line-progress-label">
             <span className="move-num" id="progressMoveNum">Move {moveIndex}/{moves.length}</span>
-            <span className="move-name" id="progressLineName">{opening.lineNames[currentLine] ?? `Línea ${lineIndex + 1}`}</span>
+            <span className="move-name" id="progressLineName">{mode === "puzzle" ? `Puzzle ~${currentPuzzle?.Rating ?? puzzleElo} ELO` : opening.lineNames[currentLine] ?? `Línea ${lineIndex + 1}`}</span>
           </div>
         </div>
 
@@ -1274,24 +1523,26 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       <div className="trainer-panel">
         <div className="panel-content">
           {/* Mode Header */}
-          <div className="mode-header" id="modeHeader" onClick={() => setLinePickerOpen((open) => !open)}>
+          <div className="mode-header" id="modeHeader" onClick={() => {
+            if (mode !== "puzzle") setLinePickerOpen((open) => !open);
+          }}>
             <div className="mode-info">
               <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink-2)" }}>
                 <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
                 <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
               </svg>
               <div>
-                <div className="mode-name">{mode === "time" ? "Time Trials" : mode === "drill" ? "Drill" : mode === "practice" ? "Practice" : "Learn"}</div>
+                <div className="mode-name">{mode === "puzzle" ? "Puzzles" : mode === "time" ? "Time Trials" : mode === "drill" ? "Drill" : mode === "practice" ? "Practice" : "Learn"}</div>
                 <div className="opening-name" id="openingName">{opening.displayName.replace(" Mastery", "")}</div>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span className="line-counter" id="lineCounter">#{lineIndex + 1}</span>
+              <span className="line-counter" id="lineCounter">{mode === "puzzle" ? "Puzzle" : `#${lineIndex + 1}`}</span>
               <span id="dropdownChevron" style={{ fontSize: "0.7rem", color: "var(--color-muted)", transition: "transform 0.2s", transform: linePickerOpen ? "rotate(180deg)" : "" }}>▼</span>
             </div>
 
             {/* Line Dropdown */}
-            <div className={`line-dropdown ${linePickerOpen ? "open" : ""}`} id="lineDropdown">
+            <div className={`line-dropdown ${linePickerOpen && mode !== "puzzle" ? "open" : ""}`} id="lineDropdown">
               <div className="dropdown-list" id="dropdownList">
                 {opening.lines.map((line, index) => {
                   const learned = learnedLines.has(line);
@@ -1340,7 +1591,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
           {/* Spacer to push mode buttons to the center */}
           {/* Mode Selector */}
-          <div className={`mode-selector ${mode === "drill" || mode === "time" ? "drill-hidden" : ""}`}>
+          <div className={`mode-selector ${mode === "drill" || mode === "time" || mode === "puzzle" ? "drill-hidden" : ""}`}>
             {completed && mode === "learn" ? (
               <div style={{ display: "flex", gap: "12px", width: "100%" }}>
                 <button
@@ -1408,7 +1659,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                   <span className="mode-sub" id="practiceStats">{practicePerfectedCount}/{learnedCount} lines perfected</span>
                 </button>
 
-                <button className="mode-btn locked" id="modePuzzles" disabled type="button">
+                <button className={`mode-btn ${learnedCount < 2 ? "locked" : ""}`} id="modePuzzles" disabled={learnedCount < 2} type="button" onClick={() => changeMode("puzzle")}>
                   <div className="mode-btn-main">
                     <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)", opacity: 0.5 }}>
                       <path d="M19.439 7.85c-.049.322.059.648.289.878l1.378 1.378a1 1 0 0 1 .289.878c0 .486-.166.893-.457 1.181l-1.99 1.99a1 1 0 0 1-.878.289 1 1 0 0 1-.878-.289l-1.378-1.378a1.05 1.05 0 0 0-.878-.289c-.322 0-.649.059-.878.289l-1.378 1.378a1 1 0 0 1-.878.289 1 1 0 0 1-.878-.289l-1.99-1.99a1 1 0 0 1-.289-.878c0-.486.166-.893.457-1.181l1.378-1.378a1.05 1.05 0 0 0 .289-.878c0-.322-.059-.649-.289-.878l-1.378-1.378a1 1 0 0 1-.289-.878c0-.486.166-.893.457-1.181l1.99-1.99a1 1 0 0 1 .878-.289c.322 0 .649.059.878.289l1.378 1.378a1.05 1.05 0 0 0 .878.289c.322 0 .649-.059.878-.289l1.378-1.378a1 1 0 0 1 .878-.289 1 1 0 0 1 .878.289l1.99 1.99a1 1 0 0 1 .289.878c0 .486-.166.893-.457 1.181l-1.378 1.378a1.05 1.05 0 0 0-.289.878z"/>
@@ -1492,6 +1743,34 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                 <div className="drill-leaderboard-msg">Un error reinicia la línea. Completa tantas líneas como puedas en 60 segundos.</div>
               </div>
               <button className="btn-leave-drill" type="button" onClick={() => changeMode("learn")}>Leave Time Trials</button>
+            </div>
+          )}
+
+          {/* Puzzle Panel */}
+          {mode === "puzzle" && (
+            <div className="puzzle-panel active" id="puzzlePanel">
+              <div className="puzzle-rating-display">
+                <span className="puzzle-rating-label">Your Puzzle ELO</span>
+                <span className="puzzle-rating-value" id="puzzleRating">{puzzleElo}</span>
+              </div>
+              <div className="puzzle-divider"></div>
+              <div className="puzzle-streak">
+                <svg className="puzzle-streak-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+                </svg>
+                <div className="puzzle-streak-info">
+                  <span className="puzzle-streak-label">Current streak</span>
+                  <span className="puzzle-streak-value" id="puzzleStreak">{puzzleStreak}</span>
+                </div>
+              </div>
+              <div className="puzzle-streak">
+                <div className="puzzle-streak-info">
+                  <span className="puzzle-streak-label">Puzzle difficulty</span>
+                  <span className="puzzle-streak-value">{currentPuzzle ? `~${currentPuzzle.Rating} rating` : puzzleLoading ? "Loading..." : "---"}</span>
+                </div>
+              </div>
+              {puzzleMessage && <div className="drill-leaderboard-msg">{puzzleMessage}</div>}
+              <button className="btn-leave-drill" type="button" onClick={() => changeMode("learn")}>Leave Puzzles</button>
             </div>
           )}
           
@@ -1635,26 +1914,50 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
         </div>
       </div>
       <div className={`gameover-overlay ${drillGameOver ? "open" : ""}`} id="gameoverOverlay">
-        <h2>Game Over</h2>
-        <div className="gameover-score">Score: {drillScore}</div>
-        <div className="gameover-high">High Score: {drillHighScore}</div>
-        <button className="btn-next-line" type="button" onClick={() => {
-          drillScoreRef.current = 0;
-          setDrillScore(0);
-          setDrillGameOver(false);
-          startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex), "drill");
-        }}>Try Again</button>
-        <button className="btn-next-line" type="button" onClick={() => changeMode("learn")}>Leave Drill</button>
+        <div className="gameover-card">
+          <h2 className="gameover-title-danger">Game Over</h2>
+          <div className="gameover-stats">
+            <div className="gameover-score">
+              <span className="score-label">SCORE</span>
+              <span className="score-value">{drillScore}</span>
+            </div>
+            <div className="gameover-high">
+              <span className="high-label">High Score:</span>
+              <span className="high-value">{drillHighScore}</span>
+            </div>
+          </div>
+          <div className="gameover-actions">
+            <button className="btn-next-line" type="button" onClick={() => {
+              drillScoreRef.current = 0;
+              setDrillScore(0);
+              setDrillGameOver(false);
+              startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex), "drill");
+            }}>Try Again</button>
+            <button className="btn-secondary" type="button" onClick={() => changeMode("learn")}>Leave Drill</button>
+          </div>
+        </div>
       </div>
       <div className={`gameover-overlay ${timeGameOver ? "open" : ""}`} id="timeGameoverOverlay">
-        <h2>Time&apos;s Up</h2>
-        <div className="gameover-score">Score: {timeScore}</div>
-        <div className="gameover-high">High Score: {timeHighScore}</div>
-        <button className="btn-next-line" type="button" onClick={() => {
-          startTimeRound();
-          startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex), "time");
-        }}>Try Again</button>
-        <button className="btn-next-line" type="button" onClick={() => changeMode("learn")}>Leave Time Trials</button>
+        <div className="gameover-card">
+          <h2 className="gameover-title-warning">Time&apos;s Up</h2>
+          <div className="gameover-stats">
+            <div className="gameover-score">
+              <span className="score-label">SCORE</span>
+              <span className="score-value">{timeScore}</span>
+            </div>
+            <div className="gameover-high">
+              <span className="high-label">High Score:</span>
+              <span className="high-value">{timeHighScore}</span>
+            </div>
+          </div>
+          <div className="gameover-actions">
+            <button className="btn-next-line" type="button" onClick={() => {
+              startTimeRound();
+              startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex), "time");
+            }}>Try Again</button>
+            <button className="btn-secondary" type="button" onClick={() => changeMode("learn")}>Leave Time Trials</button>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type CloudProgress = Record<string, any>;
-export type TrainingMode = "learn" | "practice" | "drill" | "time";
+export type TrainingMode = "learn" | "practice" | "drill" | "time" | "puzzle";
 
 const progressKey = "chessengineered_progress";
 const pendingActivityKey = "chessengineered_pending_training_activity";
@@ -98,6 +98,12 @@ async function applyActivitySummary(client: SupabaseClient, userId: string, prog
   };
 }
 
+async function applyPuzzleProgress(client: SupabaseClient, progress: CloudProgress) {
+  const { data, error } = await client.rpc("get_puzzle_progress");
+  if (error) throw error;
+  return { ...progress, ...((data as CloudProgress | null) ?? {}) };
+}
+
 export async function loadCloudProgress(client: SupabaseClient, userId: string) {
   await flushPendingTrainingActivity(client).catch((error: Error) => {
     console.warn("Unable to sync pending training time:", error.message);
@@ -107,7 +113,8 @@ export async function loadCloudProgress(client: SupabaseClient, userId: string) 
     p_timezone: timezone(),
   });
   if (error) throw error;
-  return cacheProgress(await applyActivitySummary(client, userId, (data as CloudProgress | null) ?? {}));
+  const progress = await applyActivitySummary(client, userId, (data as CloudProgress | null) ?? {});
+  return cacheProgress(await applyPuzzleProgress(client, progress));
 }
 
 export async function resetOpeningProgress(client: SupabaseClient, slug: string) {
@@ -184,4 +191,14 @@ export async function saveTimeHighScore(client: SupabaseClient, slug: string, sc
   });
   if (error) throw error;
   return cacheProgress((data as CloudProgress | null) ?? {});
+}
+
+export async function savePuzzleResult(client: SupabaseClient, puzzleRating: number, solved: boolean) {
+  const { data, error } = await client.rpc("record_puzzle_result", {
+    p_puzzle_rating: Math.max(400, Math.min(5000, Math.round(puzzleRating))),
+    p_solved: solved,
+  });
+  if (error) throw error;
+  const progress = readCachedProgress();
+  return cacheProgress({ ...progress, ...((data as CloudProgress | null) ?? {}) });
 }

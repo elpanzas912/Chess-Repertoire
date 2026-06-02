@@ -1254,31 +1254,189 @@ body { overflow: hidden; }
 }
 .btn-unlock-close:hover { background: var(--color-accent-hover); }
 
-/* ── Game Over Overlay ── */
+/* ── Game Over Overlay & Defeat Animations ── */
 .gameover-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: oklch(10% 0.01 250 / 0.85);
-  z-index: var(--z-modal);
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: var(--space-md);
+  display: flex !important;
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(9, 9, 11, 0.75) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  z-index: var(--z-modal) !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: var(--space-md) !important;
+  
+  /* Transition state */
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  transition: opacity 0.4s cubic-bezier(0.25, 1, 0.5, 1), visibility 0.4s ease !important;
+  
+  /* Reset any layout card styles applied to the overlay wrapper */
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
-.gameover-overlay.open { display: flex; }
-.gameover-overlay h2 {
-  font-size: var(--text-2xl);
-  font-weight: 700;
-  color: var(--color-danger);
+
+.gameover-overlay.open {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
 }
-.gameover-overlay .gameover-score {
-  font-size: var(--text-md);
-  color: var(--color-ink);
+
+/* Beautiful Bouncy Card Container */
+.gameover-card {
+  background: rgba(18, 18, 24, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6) !important;
+  border-radius: 24px !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  padding: 2.5rem 2rem !important;
+  max-width: 380px !important;
+  width: calc(100% - 32px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 1.5rem !important;
+  text-align: center !important;
+  
+  /* Elegant Scale Transition */
+  transform: scale(0.9) translateY(20px) !important;
+  opacity: 0 !important;
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease !important;
 }
-.gameover-overlay .gameover-high {
-  font-size: var(--text-sm);
-  color: var(--color-muted);
+
+.gameover-overlay.open .gameover-card {
+  transform: scale(1) translateY(0) !important;
+  opacity: 1 !important;
+}
+
+/* Modern Typography Gradients */
+.gameover-title-danger {
+  font-size: 2.25rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.025em !important;
+  margin: 0 !important;
+  background: linear-gradient(135deg, #ef4444 0%, #f472b6 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  text-fill-color: transparent !important;
+  filter: drop-shadow(0 4px 12px rgba(239, 68, 68, 0.15)) !important;
+}
+
+.gameover-title-warning {
+  font-size: 2.25rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.025em !important;
+  margin: 0 !important;
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  text-fill-color: transparent !important;
+  filter: drop-shadow(0 4px 12px rgba(251, 191, 36, 0.15)) !important;
+}
+
+/* High Fidelity Stats Display */
+.gameover-stats {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+  width: 100% !important;
+}
+
+.gameover-score {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 0.25rem !important;
+  margin: 0.5rem 0 !important;
+}
+
+.gameover-score .score-label {
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.15em !important;
+  color: var(--color-muted) !important;
+}
+
+.gameover-score .score-value {
+  font-size: 3rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  color: #ffffff !important;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.1) !important;
+}
+
+.gameover-high {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  padding: 0.35rem 1rem !important;
+  border-radius: 100px !important;
+  font-size: 0.85rem !important;
+}
+
+.gameover-high .high-label {
+  color: var(--color-muted) !important;
+}
+
+.gameover-high .high-value {
+  color: #fbbf24 !important;
+  font-weight: 700 !important;
+}
+
+/* Button & Actions Layout */
+.gameover-actions {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.75rem !important;
+  width: 100% !important;
+}
+
+.gameover-actions button {
+  width: 100% !important;
+  height: 48px !important;
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  border-radius: 12px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  box-sizing: border-box !important;
+}
+
+/* Base style for board shake when game is lost */
+#board.shake-error {
+  animation: boardShake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both,
+             boardRedGlow 1.5s ease-in-out infinite alternate !important;
+}
+
+@keyframes boardShake {
+  10%, 90% { transform: translate3d(-3px, 0, 0); }
+  20%, 80% { transform: translate3d(4px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+  40%, 60% { transform: translate3d(6px, 0, 0); }
+}
+
+@keyframes boardRedGlow {
+  0% {
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5),
+                0 0 15px rgba(239, 68, 68, 0.25) !important;
+    border-color: rgba(239, 68, 68, 0.35) !important;
+  }
+  100% {
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.6),
+                0 0 35px rgba(239, 68, 68, 0.65) !important;
+    border-color: rgba(239, 68, 68, 0.75) !important;
+  }
 }
 
 /* ── Bottom Toolbar ── */
