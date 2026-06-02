@@ -243,7 +243,7 @@ export function OpeningsLibrary({ openings }: { openings: Openings }) {
       router.push(`/opening/${slug}`);
     } catch (error) {
       if (error instanceof OpeningAccessError && error.status === 401) {
-        router.push(`/login?next=/opening/${slug}`);
+        router.push(`/opening/${slug}`);
         return;
       }
       if (error instanceof OpeningAccessError && error.status === 403) {
