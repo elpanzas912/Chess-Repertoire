@@ -1414,7 +1414,6 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
               </svg>
               <span id="completeNextLabel">Next Line</span>
             </button>
-            <button className="toolbar-btn mobile-mode-toggle" type="button" aria-label="Change mode" onClick={() => document.body.classList.toggle("show-mobile-modes")}>Mode</button>
           </div>
         </div>
       </div>

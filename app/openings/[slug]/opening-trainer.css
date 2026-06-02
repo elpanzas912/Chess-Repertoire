@@ -3515,18 +3515,22 @@ body {
   }
 
   .toolbar-btn.icon-only {
-    width: 34px !important;
-    height: 34px !important;
+    width: 36px !important;
+    height: 36px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
   }
 
   .toolbar-btn svg {
-    width: 17px !important;
-    height: 17px !important;
+    width: 18px !important;
+    height: 18px !important;
   }
 
   .nav-group .toolbar-btn {
-    width: 34px !important;
-    height: 34px !important;
+    width: 36px !important;
+    height: 36px !important;
   }
 
   .mobile-mode-toggle {
@@ -3612,7 +3616,11 @@ body {
   }
 
   /* Make settings and nav icons larger and matches premium look */
-  #btnSettings svg,
+  #btnSettings svg {
+    width: 23px !important;
+    height: 23px !important;
+  }
+
   #btnPrev svg,
   #btnNext svg {
     width: 21px !important;
