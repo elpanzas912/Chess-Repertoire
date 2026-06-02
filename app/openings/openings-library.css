@@ -1771,3 +1771,168 @@ nav {
   -webkit-backdrop-filter: blur(20px) !important;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6) !important;
 }
+
+/* ── Floating Login Overlay ── */
+.login-overlay-container {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(9, 9, 11, 0.7) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  padding: var(--space-md);
+}
+
+.floating-login-card {
+  width: 100% !important;
+  max-width: 420px !important;
+  background: rgba(18, 18, 24, 0.8) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6) !important;
+  border-radius: 20px !important;
+  backdrop-filter: blur(20px) !important;
+  padding: 36px 28px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 16px !important;
+  position: relative !important;
+}
+
+.floating-login-card h1 {
+  font-size: 28px !important;
+  font-weight: 700 !important;
+  color: #fafafa !important;
+  margin: 0 !important;
+  font-family: var(--font-display) !important;
+}
+
+.floating-login-card p {
+  font-size: 14px !important;
+  color: #a1a1aa !important;
+  margin: 0 !important;
+  line-height: 1.5 !important;
+}
+
+.floating-login-card label {
+  color: #a1a1aa !important;
+  display: flex !important;
+  flex-direction: column !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  gap: 8px !important;
+}
+
+.floating-login-card input {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 10px !important;
+  color: #fafafa !important;
+  padding: 12px 14px !important;
+  font-size: 14px !important;
+  transition: all 0.2s !important;
+}
+
+.floating-login-card input:focus {
+  border-color: #fbbf24 !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.15) !important;
+}
+
+.floating-login-card button[type="submit"] {
+  background: #fbbf24 !important;
+  border: none !important;
+  border-radius: 12px !important;
+  color: #121214 !important;
+  cursor: pointer !important;
+  font-weight: 700 !important;
+  padding: 14px !important;
+  font-size: 15px !important;
+  transition: all 0.25s var(--ease-out) !important;
+  box-shadow: 0 4px 16px rgba(251, 191, 36, 0.2) !important;
+}
+
+.floating-login-card button[type="submit"]:hover {
+  background: #f59e0b !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 24px rgba(251, 191, 36, 0.35) !important;
+}
+
+.floating-login-card button[type="submit"]:active {
+  transform: translateY(0) !important;
+}
+
+.floating-login-card .google-login {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #fafafa !important;
+  border-radius: 12px !important;
+  padding: 12px 14px !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  transition: all 0.25s !important;
+}
+
+.floating-login-card .google-login:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  transform: translateY(-1px) !important;
+}
+
+.floating-login-card .google-login:active {
+  transform: translateY(0) !important;
+}
+
+.floating-login-card .login-separator {
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #71717a !important;
+  font-size: 12px !important;
+  margin: 8px 0 !important;
+  text-align: center !important;
+  display: block !important;
+  height: auto !important;
+}
+
+.floating-login-card .login-separator span {
+  background: #15151c !important;
+  padding: 0 10px !important;
+  position: relative !important;
+  top: -9px !important;
+}
+
+.floating-login-card .form-error {
+  color: #ef4444 !important;
+  font-size: 13px !important;
+  margin: 0 !important;
+  text-align: center !important;
+}
+
+.auth-close-btn {
+  position: absolute !important;
+  top: 16px !important;
+  right: 16px !important;
+  background: none !important;
+  border: none !important;
+  color: #71717a !important;
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  transition: all 0.15s !important;
+}
+
+.auth-close-btn:hover {
+  color: #e4e4e7 !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+}

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Chess, type Square } from "chess.js";
 import { supabase } from "../../../lib/supabase";
-import { createEventId, recordTrainingCompletion, recordTrainingActivity, resetOpeningProgress, saveDrillHighScore, type TrainingMode } from "../../../lib/cloud-progress";
+import { createEventId, recordTrainingCompletion, recordTrainingActivity, resetOpeningProgress, saveDrillHighScore, saveTimeHighScore, type TrainingMode } from "../../../lib/cloud-progress";
 import { loadOpening, OpeningAccessError, readCachedOpening, type CachedOpening } from "../../../lib/opening-cache";
 import { ChessboardReact } from "./chessboard-react";
 
@@ -118,7 +118,7 @@ function getRandomPracticeLineIndex(lines: string[], learnedLines: Set<string>, 
   return candidates[Math.floor(Math.random() * candidates.length)].index;
 }
 
-function getOpeningHighScore(slug: string, key: "drillHighScore") {
+function getOpeningHighScore(slug: string, key: "drillHighScore" | "timeHighScore") {
   try {
     const progress = JSON.parse(localStorage.getItem("chessengineered_progress") ?? "{}");
     return Math.max(0, Math.round(Number(progress[slug]?.[key]) || 0));
@@ -127,7 +127,7 @@ function getOpeningHighScore(slug: string, key: "drillHighScore") {
   }
 }
 
-function saveOpeningHighScore(slug: string, key: "drillHighScore", score: number) {
+function saveOpeningHighScore(slug: string, key: "drillHighScore" | "timeHighScore", score: number) {
   const raw = localStorage.getItem("chessengineered_progress");
   const progress = raw ? JSON.parse(raw) : {};
   const opening = progress[slug] ?? {};
@@ -365,6 +365,10 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const [drillScore, setDrillScore] = useState(0);
   const [drillHighScore, setDrillHighScore] = useState(() => getOpeningHighScore(slug, "drillHighScore"));
   const [drillGameOver, setDrillGameOver] = useState(false);
+  const [timeScore, setTimeScore] = useState(0);
+  const [timeHighScore, setTimeHighScore] = useState(() => getOpeningHighScore(slug, "timeHighScore"));
+  const [timeRemainingMs, setTimeRemainingMs] = useState(60000);
+  const [timeGameOver, setTimeGameOver] = useState(false);
   const [boardLocked, setBoardLocked] = useState(true);
   
   // Estados y referencias para la barra de evaluación asíncrona Stockfish
@@ -387,6 +391,12 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   const startNextPracticeLineRef = useRef<() => void>(() => undefined);
   const startNextDrillLineRef = useRef<() => void>(() => undefined);
   const drillScoreRef = useRef(0);
+  const startNextTimeLineRef = useRef<() => void>(() => undefined);
+  const restartTimeLineRef = useRef<() => void>(() => undefined);
+  const timeScoreRef = useRef(0);
+  const timeDeadlineRef = useRef(0);
+  const timeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tenSecondSoundPlayedRef = useRef(false);
   const currentLine = opening.lines[lineIndex];
   const moves = useMemo(() => parseLine(currentLine), [currentLine]);
   const learnedCount = learnedLines.size;
@@ -523,6 +533,10 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
   }, []);
 
   const updateInstruction = useCallback((chess: Chess) => {
+    if (mode === "time") {
+      setInstruction(`Score: ${timeScoreRef.current} — completa tantas líneas como puedas antes de que termine el tiempo.`);
+      return;
+    }
     if (mode === "drill") {
       setInstruction(`Streak: ${drillScoreRef.current} — completa tantas líneas seguidas como puedas.`);
       return;
@@ -547,11 +561,16 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       savePracticeCompletion(slug, currentLine, incorrectMovesRef.current === 0);
       setPracticePerfectedCount(getPracticePerfectedCount(slug, getKnownLearnedLines(slug, opening.lines)));
     } else {
-      drillScoreRef.current += 1;
-      setDrillScore(drillScoreRef.current);
+      if (mode === "drill") {
+        drillScoreRef.current += 1;
+        setDrillScore(drillScoreRef.current);
+      } else {
+        timeScoreRef.current += 1;
+        setTimeScore(timeScoreRef.current);
+      }
     }
 
-    if (!supabase || mode === "drill") return;
+    if (!supabase || mode === "drill" || mode === "time") return;
     const now = Date.now();
     const activeDurationMs = now - activityStartedAtRef.current;
     activityStartedAtRef.current = now;
@@ -564,7 +583,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       eventId: createEventId(),
       slug,
       line: currentLine,
-      mode,
+      mode: mode as "learn" | "practice",
       correctMoves: correctMovesRef.current,
       incorrectMoves: incorrectMovesRef.current,
       durationMs: Math.max(0, Date.now() - sessionStartedAtRef.current),
@@ -627,6 +646,10 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
           timer.current = setTimeout(() => startNextDrillLineRef.current(), PRACTICE_TRANSITION_DELAY_MS);
           return;
         }
+        if (mode === "time") {
+          timer.current = setTimeout(() => startNextTimeLineRef.current(), 300);
+          return;
+        }
         if (mode === "practice") {
           timer.current = setTimeout(() => startNextPracticeLineRef.current(), PRACTICE_TRANSITION_DELAY_MS);
           return;
@@ -678,6 +701,43 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     }
   }, [drillGameOver, drillScore, slug]);
 
+  const endTimeRound = useCallback(() => {
+    if (timeGameOver) return;
+    if (timeIntervalRef.current) clearInterval(timeIntervalRef.current);
+    if (timer.current) clearTimeout(timer.current);
+    timeIntervalRef.current = null;
+    timer.current = null;
+    setTimeRemainingMs(0);
+    setTimeGameOver(true);
+    setCompleted(true);
+    setBoardLocked(true);
+    const nextHighScore = saveOpeningHighScore(slug, "timeHighScore", timeScoreRef.current);
+    setTimeHighScore(nextHighScore);
+    if (supabase && timeScoreRef.current >= nextHighScore) {
+      void saveTimeHighScore(supabase, slug, timeScoreRef.current)
+        .catch((error) => console.warn("Unable to save time high score:", error.message));
+    }
+  }, [slug, timeGameOver]);
+
+  const startTimeRound = useCallback(() => {
+    if (timeIntervalRef.current) clearInterval(timeIntervalRef.current);
+    timeScoreRef.current = 0;
+    setTimeScore(0);
+    setTimeGameOver(false);
+    tenSecondSoundPlayedRef.current = false;
+    timeDeadlineRef.current = Date.now() + 60000;
+    setTimeRemainingMs(60000);
+    timeIntervalRef.current = setInterval(() => {
+      const remaining = Math.max(0, timeDeadlineRef.current - Date.now());
+      setTimeRemainingMs(remaining);
+      if (remaining > 0 && remaining <= 10000 && !tenSecondSoundPlayedRef.current) {
+        tenSecondSoundPlayedRef.current = true;
+        playSound("tenseconds", soundsEnabled);
+      }
+      if (remaining <= 0) endTimeRound();
+    }, 30);
+  }, [endTimeRound, soundsEnabled]);
+
   const startLine = useCallback((index: number, nextMode = mode) => {
     const nextIndex = index >= 0 && index < opening.lines.length ? index : 0;
     if (timer.current) clearTimeout(timer.current);
@@ -710,6 +770,10 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       alert("Learn 3 lines to unlock Drill!");
       return;
     }
+    if (nextMode === "time" && learnedLines.size < 3) {
+      alert("Learn 3 lines to unlock Time Trials!");
+      return;
+    }
     const now = Date.now();
     const durationMs = now - activityStartedAtRef.current;
     activityStartedAtRef.current = now;
@@ -725,11 +789,16 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       drillScoreRef.current = 0;
       setDrillScore(0);
     }
-    const nextIndex = nextMode === "practice" || nextMode === "drill"
+    if (nextMode === "time") startTimeRound();
+    else if (timeIntervalRef.current) {
+      clearInterval(timeIntervalRef.current);
+      timeIntervalRef.current = null;
+    }
+    const nextIndex = nextMode === "practice" || nextMode === "drill" || nextMode === "time"
       ? getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex)
       : getResumeLineIndex(slug, opening.lines);
     startLine(nextIndex, nextMode);
-  }, [learnedLines, lineIndex, mode, opening.lines, slug, startLine]);
+  }, [learnedLines, lineIndex, mode, opening.lines, slug, startLine, startTimeRound]);
 
   useEffect(() => {
     const chess = new Chess();
@@ -753,6 +822,12 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     };
     startNextDrillLineRef.current = () => {
       startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex), "drill");
+    };
+    startNextTimeLineRef.current = () => {
+      startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex), "time");
+    };
+    restartTimeLineRef.current = () => {
+      startLine(lineIndex, "time");
     };
   }, [learnedLines, lineIndex, opening.lines, startLine]);
 
@@ -812,6 +887,13 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
       if (expected.from !== from || expected.to !== to) {
         incorrectMovesRef.current += 1;
         if (mode === "drill") endDrillRound();
+        if (mode === "time") {
+          setFeedback({ square: to, type: "wrong" });
+          vibrate([18, 20, 18]);
+          playSound("illegal", soundsEnabled);
+          timer.current = setTimeout(() => restartTimeLineRef.current(), 520);
+          return true;
+        }
         // Movimiento incorrecto
         const fenBefore = game.fen();
 
@@ -896,6 +978,13 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     if (expected.from !== from || expected.to !== to) {
       incorrectMovesRef.current += 1;
       if (mode === "drill") endDrillRound();
+      if (mode === "time") {
+        setFeedback({ square: to, type: "wrong" });
+        vibrate([18, 20, 18]);
+        playSound("illegal", soundsEnabled);
+        timer.current = setTimeout(() => restartTimeLineRef.current(), 520);
+        return;
+      }
       setFeedback({ square: to, type: "wrong" });
       vibrate([18, 20, 18]);
       playSound("illegal", soundsEnabled);
@@ -1018,6 +1107,13 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     setDrillScore(0);
     setDrillHighScore(0);
     setDrillGameOver(false);
+    if (timeIntervalRef.current) clearInterval(timeIntervalRef.current);
+    timeIntervalRef.current = null;
+    timeScoreRef.current = 0;
+    setTimeScore(0);
+    setTimeHighScore(0);
+    setTimeRemainingMs(60000);
+    setTimeGameOver(false);
     setMode("learn");
     activityModeRef.current = "learn";
     startLine(0);
@@ -1072,6 +1168,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
     document.body.classList.add("trainer-active");
     return () => {
       document.body.classList.remove("trainer-active");
+      if (timeIntervalRef.current) clearInterval(timeIntervalRef.current);
     };
   }, []);
 
@@ -1100,6 +1197,8 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
   const progress = moves.length ? Math.round((moveIndex / moves.length) * 100) : 0;
   const nextExpected = moves[moveIndex];
+  const timeSeconds = Math.floor(timeRemainingMs / 1000);
+  const timeCentiseconds = Math.floor((timeRemainingMs % 1000) / 10).toString().padStart(2, "0");
 
   return (
     <div className="trainer-layout">
@@ -1182,7 +1281,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                 <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
               </svg>
               <div>
-                <div className="mode-name">{mode === "drill" ? "Drill" : mode === "practice" ? "Practice" : "Learn"}</div>
+                <div className="mode-name">{mode === "time" ? "Time Trials" : mode === "drill" ? "Drill" : mode === "practice" ? "Practice" : "Learn"}</div>
                 <div className="opening-name" id="openingName">{opening.displayName.replace(" Mastery", "")}</div>
               </div>
             </div>
@@ -1196,7 +1295,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
               <div className="dropdown-list" id="dropdownList">
                 {opening.lines.map((line, index) => {
                   const learned = learnedLines.has(line);
-                  const locked = mode === "practice" || mode === "drill"
+                  const locked = mode === "practice" || mode === "drill" || mode === "time"
                     ? !learned
                     : !learned && index !== getNextLearnLineIndex(opening.lines, learnedLines);
                   return (
@@ -1241,7 +1340,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
 
           {/* Spacer to push mode buttons to the center */}
           {/* Mode Selector */}
-          <div className={`mode-selector ${mode === "drill" ? "drill-hidden" : ""}`}>
+          <div className={`mode-selector ${mode === "drill" || mode === "time" ? "drill-hidden" : ""}`}>
             {completed && mode === "learn" ? (
               <div style={{ display: "flex", gap: "12px", width: "100%" }}>
                 <button
@@ -1331,7 +1430,7 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                     <span className="mode-sub">Max your streak</span>
                   </button>
 
-                  <button className="mode-btn small locked" id="modeTime" disabled type="button">
+                  <button className={`mode-btn small ${learnedCount < 3 ? "locked" : ""}`} id="modeTime" disabled={learnedCount < 3} type="button" onClick={() => changeMode("time")}>
                     <div className="mode-btn-main">
                       <svg className="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-ink)", opacity: 0.5 }}>
                         <path d="M5 22h14"/>
@@ -1368,6 +1467,31 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
                 <div className="drill-leaderboard-msg">Un error termina la ronda. Completa tantas líneas seguidas como puedas.</div>
               </div>
               <button className="btn-leave-drill" type="button" onClick={() => changeMode("learn")}>Leave Drill Mode</button>
+            </div>
+          )}
+
+          {/* Time Trials Panel */}
+          {mode === "time" && (
+            <div className="time-panel active" id="timePanel">
+              <div className="time-timer" aria-label={`${timeSeconds} seconds remaining`}>
+                <span className="timer-secs">{timeSeconds}</span>
+                <span className="timer-cs">.{timeCentiseconds}</span>
+                <span className="timer-label">seconds</span>
+              </div>
+              <div className="time-scoreboard">
+                <div className="drill-score-item">
+                  <span className="drill-score-label">Score</span>
+                  <span className="drill-score-value" id="timeScore">{timeScore}</span>
+                </div>
+                <div className={`drill-high-score ${timeHighScore > 0 ? "" : "locked"}`}>
+                  <span className="drill-score-label">High Score</span>
+                  <span className="drill-score-value" id="timeHighScore">{timeHighScore > 0 ? timeHighScore : "--"}</span>
+                </div>
+              </div>
+              <div className="time-leaderboard">
+                <div className="drill-leaderboard-msg">Un error reinicia la línea. Completa tantas líneas como puedas en 60 segundos.</div>
+              </div>
+              <button className="btn-leave-drill" type="button" onClick={() => changeMode("learn")}>Leave Time Trials</button>
             </div>
           )}
           
@@ -1521,6 +1645,16 @@ function TrainingBoard({ opening, slug }: { opening: Opening; slug: string }) {
           startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex), "drill");
         }}>Try Again</button>
         <button className="btn-next-line" type="button" onClick={() => changeMode("learn")}>Leave Drill</button>
+      </div>
+      <div className={`gameover-overlay ${timeGameOver ? "open" : ""}`} id="timeGameoverOverlay">
+        <h2>Time&apos;s Up</h2>
+        <div className="gameover-score">Score: {timeScore}</div>
+        <div className="gameover-high">High Score: {timeHighScore}</div>
+        <button className="btn-next-line" type="button" onClick={() => {
+          startTimeRound();
+          startLine(getRandomPracticeLineIndex(opening.lines, learnedLines, lineIndex), "time");
+        }}>Try Again</button>
+        <button className="btn-next-line" type="button" onClick={() => changeMode("learn")}>Leave Time Trials</button>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type CloudProgress = Record<string, any>;
-export type TrainingMode = "learn" | "practice" | "drill";
+export type TrainingMode = "learn" | "practice" | "drill" | "time";
 
 const progressKey = "chessengineered_progress";
 const pendingActivityKey = "chessengineered_pending_training_activity";
@@ -170,6 +170,15 @@ export async function recordTrainingActivity(
 
 export async function saveDrillHighScore(client: SupabaseClient, slug: string, score: number) {
   const { data, error } = await client.rpc("save_drill_high_score", {
+    p_opening_slug: slug,
+    p_score: Math.max(0, Math.round(score)),
+  });
+  if (error) throw error;
+  return cacheProgress((data as CloudProgress | null) ?? {});
+}
+
+export async function saveTimeHighScore(client: SupabaseClient, slug: string, score: number) {
+  const { data, error } = await client.rpc("save_time_high_score", {
     p_opening_slug: slug,
     p_score: Math.max(0, Math.round(score)),
   });
